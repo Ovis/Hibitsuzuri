@@ -1,0 +1,8 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "エラー";
+}
+<h1>@Model.Message</h1>
+<p>URLを確認するか、時間をおいてもう一度お試しください。</p>
+<p>お問い合わせ番号：@Model.RequestId</p>
+<a href="/">ホームへ戻る</a>
