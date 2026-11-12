@@ -11,12 +11,13 @@ public sealed class ErrorController : Controller
     /// <summary>APIには問題詳細、画面には再操作できる案内を返す</summary>
     [Route("/error/{statusCode:int?}")]
     [IgnoreAntiforgeryToken]
-    public IActionResult Index(int statusCode = StatusCodes.Status500InternalServerError)
+    public IActionResult Index()
     {
         var exception = HttpContext.Features.Get<IExceptionHandlerPathFeature>();
         var reExecution = HttpContext.Features.Get<IStatusCodeReExecuteFeature>();
-        var code = exception is not null || statusCode is < 400 or > 599
-            ? StatusCodes.Status500InternalServerError : statusCode;
+        // 不正・過大なフォームを再バインドせず、再実行されたルートから元のエラーを読む。
+        var code = exception is null && int.TryParse(RouteData.Values["statusCode"]?.ToString(), out var statusCode)
+            && statusCode is >= 400 and <= 599 ? statusCode : StatusCodes.Status500InternalServerError;
         var message = code == StatusCodes.Status404NotFound
             ? "ページが見つかりません。" : "処理を完了できませんでした。";
         var originalPath = exception?.Path ?? reExecution?.OriginalPath ?? Request.Path.Value;

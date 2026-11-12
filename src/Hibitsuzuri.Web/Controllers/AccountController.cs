@@ -12,6 +12,8 @@ namespace Hibitsuzuri.Web.Controllers;
 /// <summary>認証済みユーザー本人のアカウント設定</summary>
 [ServiceFilter<AuthOperationFilter>]
 [EnableRateLimiting("authentication")]
+[RequestSizeLimit(16384)]
+[RequestFormLimits(ValueLengthLimit = 1024)]
 public sealed class AccountController(UserManager<AppUser> users, AppDbContext db, SessionService sessions,
     PasswordAuthentication passwords, RecoveryCodes codes, AccountFlows flows, AuthAudit audit) : Controller
 {

@@ -16,6 +16,7 @@ namespace Hibitsuzuri.Web.Controllers;
 [ServiceFilter<AuthOperationFilter>]
 [EnableRateLimiting("authentication")]
 [RequestSizeLimit(80000)]
+[RequestFormLimits(ValueLengthLimit = 65536)]
 public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> users, SignInManager<AppUser> signIn,
     SessionService sessions, PasskeyCeremonies ceremonies, AuthAudit audit) : Controller
 {

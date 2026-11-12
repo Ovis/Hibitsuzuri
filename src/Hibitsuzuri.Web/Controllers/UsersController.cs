@@ -11,6 +11,8 @@ namespace Hibitsuzuri.Web.Controllers;
 /// <summary>管理者による登録受付とアカウントの管理。記録の閲覧権限は扱わない</summary>
 [ServiceFilter<AuthOperationFilter>]
 [EnableRateLimiting("authentication")]
+[RequestSizeLimit(16384)]
+[RequestFormLimits(ValueLengthLimit = 1024)]
 public sealed class UsersController(AppDbContext db, UserManager<AppUser> users, SessionService sessions, AuthAudit audit) : Controller
 {
     /// <summary>最新の管理者権限を照合して、アカウント一覧を表示する</summary>
@@ -74,9 +76,11 @@ public sealed class UsersController(AppDbContext db, UserManager<AppUser> users,
             return BadRequest("削除するユーザーIDを正確に入力してください。");
         }
 
-        if (target.IsAdmin && !target.IsSuspended && operation is "revoke" or "suspend" or "delete"
+        if (target.IsAdmin && !target.IsSuspended && (operation is "revoke" or "suspend" or "delete")
             && await db.Users.CountAsync(x => x.IsAdmin && !x.IsSuspended) <= 1)
         {
+            audit.Add(HttpContext, "last-admin-protected", target.Id, succeeded: false);
+            await db.SaveChangesAsync();
             return Conflict("最後の利用可能な管理者は、権限解除・利用停止・削除できません。");
         }
 

@@ -15,8 +15,11 @@ namespace Hibitsuzuri.Web.Controllers;
 [AllowAnonymous]
 [ServiceFilter<AuthOperationFilter>]
 [EnableRateLimiting("authentication")]
+[RequestSizeLimit(16384)]
+[RequestFormLimits(ValueLengthLimit = 1024)]
 public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, SessionService sessions,
-    PasswordAuthentication passwords, RecoveryCodes codes, AccountFlows flows, AuthAudit audit, IConfiguration configuration) : Controller
+    PasswordAuthentication passwords, RecoveryCodes codes, AccountFlows flows, AuthAudit audit,
+    PasskeyCeremonies ceremonies, IConfiguration configuration) : Controller
 {
     /// <summary>セットアップが必要なら登録へ案内し、通常はログイン画面を表示する</summary>
     [HttpGet("/auth/login")]
@@ -157,6 +160,8 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
     [HttpPost("/auth/logout")]
     public async Task<IActionResult> Logout()
     {
+        await flows.CancelAsync(HttpContext);
+        ceremonies.Cancel(HttpContext, sessions);
         await sessions.SignOutAsync(HttpContext);
         return RedirectToAction(nameof(Login));
     }

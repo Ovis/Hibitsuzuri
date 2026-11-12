@@ -5,6 +5,18 @@ public sealed class PasskeyCeremonies(TimeProvider clock)
 {
     private readonly Dictionary<string, PasskeyCeremony> _pending = [];
 
+    /// <summary>ログアウト時に開始済みのPasskey手続きを取り消す</summary>
+    public void Cancel(HttpContext context, SessionService sessions)
+    {
+        var name = sessions.CookieName("Ceremony");
+        if (context.Request.Cookies[name] is { } token)
+        {
+            _pending.Remove(token);
+        }
+
+        context.Response.Cookies.Delete(name, sessions.CookieOptions(TimeSpan.Zero));
+    }
+
     /// <summary>認証更新ロック内で、期限切れを回収して5分間の手続きを開始する</summary>
     public string? Begin(HttpContext context, SessionService sessions, PasskeyCeremony ceremony)
     {

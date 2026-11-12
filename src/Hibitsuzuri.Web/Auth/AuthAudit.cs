@@ -7,6 +7,13 @@ namespace Hibitsuzuri.Web.Auth;
 /// <summary>重要イベントを秘密や可変のログイン名なしで記録する</summary>
 public sealed class AuthAudit(AppDbContext db, TimeProvider clock)
 {
+    /// <summary>イベント発生から90日を経過した監査だけを削除する</summary>
+    public Task PruneAsync(CancellationToken cancellationToken = default)
+    {
+        var cutoff = clock.GetUtcNow().AddDays(-90).ToUnixTimeMilliseconds();
+        return db.SecurityAuditLogs.Where(x => x.OccurredAt <= cutoff).ExecuteDeleteAsync(cancellationToken);
+    }
+
     /// <summary>操作と同じトランザクションで保存する監査行を追加する</summary>
     public void Add(HttpContext context, string eventName, string? subjectId, bool succeeded = true)
     {
@@ -41,7 +48,7 @@ public sealed class AuthMaintenance(IServiceScopeFactory scopes, AuthWriteGate g
                     await using var scope = scopes.CreateAsyncScope();
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var now = clock.GetUtcNow();
-                    await db.SecurityAuditLogs.Where(x => x.OccurredAt <= now.AddDays(-90).ToUnixTimeMilliseconds()).ExecuteDeleteAsync(stoppingToken);
+                    await scope.ServiceProvider.GetRequiredService<AuthAudit>().PruneAsync(stoppingToken);
                     await db.AccountFlows.Where(x => x.ExpiresAt <= now.ToUnixTimeMilliseconds()).ExecuteDeleteAsync(stoppingToken);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)

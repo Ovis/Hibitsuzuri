@@ -10,6 +10,8 @@ namespace Hibitsuzuri.Web.Controllers;
 [AllowAnonymous]
 [ServiceFilter<AuthOperationFilter>]
 [EnableRateLimiting("authentication")]
+[RequestSizeLimit(16384)]
+[RequestFormLimits(ValueLengthLimit = 1024)]
 public sealed class RecoveryController(AccountRecoveryService recovery, AccountFlows flows) : Controller
 {
     /// <summary>復旧専用コードによる本人確認を案内する</summary>

@@ -33,10 +33,13 @@
             <nav class="navigation" aria-label="メインメニュー">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
-                <a href="/" aria-current="@(currentPage == "home" ? "page" : null)">ホーム</a>
-                <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
-                <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
-                <form method="post" action="/auth/logout">@Html.AntiForgeryToken()<button class="nav-button" type="submit">ログアウト</button></form>
+                    <a href="/" aria-current="@(currentPage == "home" ? "page" : null)">ホーム</a>
+                    <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
+                    <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
+                    <form method="post" action="/auth/logout">
+                        @Html.AntiForgeryToken()
+                        <button class="nav-button" type="submit">ログアウト</button>
+                    </form>
                 }
                 else
                 {

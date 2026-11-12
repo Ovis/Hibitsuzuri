@@ -34,6 +34,18 @@ public sealed class RecoveryCodes(AppDbContext db)
 /// <summary>復旧状態を通常セッションやコード平文から分離する</summary>
 public sealed class AccountFlows(AppDbContext db, SessionService sessions, TimeProvider clock)
 {
+    /// <summary>ログアウト後に保存確認から再ログインできないよう、ブラウザの専用状態を消費する</summary>
+    public async Task CancelAsync(HttpContext context)
+    {
+        var name = sessions.CookieName("Flow");
+        if (context.Request.Cookies[name] is { } token)
+        {
+            await db.AccountFlows.Where(x => x.TokenHash == AuthRules.Hash(token)).ExecuteDeleteAsync();
+        }
+
+        context.Response.Cookies.Delete(name, sessions.CookieOptions(TimeSpan.Zero));
+    }
+
     /// <summary>ブラウザにだけ乱数を渡し、DBには短命の検証情報を保存する</summary>
     public async Task BeginAsync(HttpContext context, AppUser user, string purpose, bool rememberMe = false)
     {
