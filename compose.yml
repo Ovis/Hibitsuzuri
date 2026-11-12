@@ -1,0 +1,37 @@
+services:
+  web:
+    image: hibitsuzuri:local
+    build:
+      context: .
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${HIBITSUZURI_TIMEZONE:-Asia/Tokyo}
+      Site__PublicOrigin: https://${HIBITSUZURI_HOST:?公開ホスト名を指定してください}
+      # 直近のTraefikが持つ、proxyネットワーク上の固定IPだけを信頼する。
+      ReverseProxy__KnownProxies__0: ${HIBITSUZURI_PROXY_IP:?直近のプロキシIPを指定してください}
+    volumes:
+      - data:/data
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HIBITSUZURI_PROXY_NETWORK:-traefik}
+      traefik.http.routers.hibitsuzuri.rule: Host(`${HIBITSUZURI_HOST}`)
+      traefik.http.routers.hibitsuzuri.entrypoints: websecure
+      traefik.http.routers.hibitsuzuri.tls: "true"
+      traefik.http.services.hibitsuzuri.loadbalancer.server.port: "8080"
+
+volumes:
+  data:
+
+networks:
+  proxy:
+    external: true
+    name: ${HIBITSUZURI_PROXY_NETWORK:-traefik}

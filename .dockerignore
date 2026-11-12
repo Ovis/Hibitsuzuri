@@ -1,0 +1,12 @@
+**
+!global.json
+!Directory.Build.props
+!LICENSE
+!src/
+!src/Hibitsuzuri.Web/
+!src/Hibitsuzuri.Web/**
+**/bin/
+**/obj/
+**/data/
+**/*.user
+**/*.db*
