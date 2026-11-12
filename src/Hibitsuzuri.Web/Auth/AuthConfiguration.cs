@@ -33,6 +33,7 @@ public static class AuthConfiguration
         builder.Services.AddScoped<RecoveryCodes>();
         builder.Services.AddScoped<AccountFlows>();
         builder.Services.AddScoped<PasswordAuthentication>();
+        builder.Services.AddScoped<AccountRecoveryService>();
         builder.Services.AddScoped<AuthAudit>();
         builder.Services.AddScoped<AuthOperationFilter>();
         builder.Services.AddSingleton<AuthWriteGate>();
