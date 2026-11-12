@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Hibitsuzuri.Web.Controllers;
 
 /// <summary>HTTPエラーを失敗のステータスのまま案内する</summary>
+[Microsoft.AspNetCore.Authorization.AllowAnonymous]
 public sealed class ErrorController : Controller
 {
     /// <summary>APIには問題詳細、画面には再操作できる案内を返す</summary>

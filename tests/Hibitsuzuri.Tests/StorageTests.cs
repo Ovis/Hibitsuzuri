@@ -45,7 +45,7 @@ public sealed class StorageTests
         {
             Assert.That(recovered, Is.EqualTo("persisted-value"));
             Assert.That(value, Is.EqualTo("kept"));
-            Assert.That(migrations.Count(), Is.EqualTo(1));
+            Assert.That(migrations.Count(), Is.EqualTo(2));
             Assert.That(pending, Is.Empty);
         });
     }

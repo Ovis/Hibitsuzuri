@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Hibitsuzuri.Tests;
 
 /// <summary>本番のミドルウェアとMVCフィルターを通してHTTP境界を検証する。配布アプリには登録しない</summary>
+[Microsoft.AspNetCore.Authorization.AllowAnonymous]
 public sealed class ProbeController : Controller
 {
     /// <summary>サーバーが採用した接続元とHTTPS判定を返す</summary>

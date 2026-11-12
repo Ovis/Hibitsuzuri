@@ -13,6 +13,7 @@ services:
       - no-new-privileges:true
     environment:
       TZ: ${HIBITSUZURI_TIMEZONE:-Asia/Tokyo}
+      Authentication__SetupCode: ${HIBITSUZURI_SETUP_CODE:-}
       Site__PublicOrigin: https://${HIBITSUZURI_HOST:?公開ホスト名を指定してください}
       # 直近のTraefikが持つ、proxyネットワーク上の固定IPだけを信頼する。
       ReverseProxy__KnownProxies__0: ${HIBITSUZURI_PROXY_IP:?直近のプロキシIPを指定してください}

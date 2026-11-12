@@ -31,8 +31,17 @@
                 <p class="brand-sub">日々を、綴る。</p>
             </div>
             <nav class="navigation" aria-label="メインメニュー">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
                 <a href="/" aria-current="@(currentPage == "home" ? "page" : null)">ホーム</a>
                 <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
+                <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
+                <form method="post" action="/auth/logout">@Html.AntiForgeryToken()<button class="nav-button" type="submit">ログアウト</button></form>
+                }
+                else
+                {
+                    <a href="/auth/login">ログイン</a>
+                }
             </nav>
         </header>
         <main id="main" class="main" tabindex="-1">

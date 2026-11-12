@@ -1,3 +1,4 @@
+using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.DataProtection;
@@ -27,6 +28,7 @@ public partial class Program
         builder.Services.AddDbContext<AppDbContext>((services, options) =>
             options.UseSqlite(services.GetRequiredService<DataDirectory>().ConnectionString));
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.AddAccountAuthentication(site);
 
         builder.Services.AddDataProtection().SetApplicationName("Hibitsuzuri");
         builder.Services.AddOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>()
@@ -91,6 +93,10 @@ public partial class Program
         {
             OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "public, max-age=3600"
         });
+        app.UseRouting();
+        app.UseAuthentication();
+        app.UseRateLimiter();
+        app.UseAuthorization();
         app.MapControllers();
 
         var clock = app.Services.GetRequiredService<TimeProvider>();

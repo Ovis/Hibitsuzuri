@@ -1,0 +1,11 @@
+@model Hibitsuzuri.Web.Auth.AppUser
+@{
+    ViewData["Title"] = "アカウント";
+    ViewData["Navigation"] = "account";
+}
+<div class="page-heading"><h1>アカウント</h1></div>
+<section class="paper settings-panel">
+    <h2>@Model.UserName</h2>
+    <p>ユーザーIDは変更できません。</p>
+    <p>Passkeyを登録すると、端末の本人確認でログインできます。登録は後からでも可能です。</p>
+</section>

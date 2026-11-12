@@ -13,7 +13,7 @@ public sealed class HostTests
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
 
-        using var response = await browser.GetAsync("/");
+        using var response = await browser.GetAsync("/auth/register");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Multiple(() =>
@@ -109,6 +109,7 @@ public sealed class HostTests
     {
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
+        await AuthClient.RegisterAsync(browser);
 
         using var response = await browser.GetAsync(path);
         var body = await response.Content.ReadAsStringAsync();
@@ -174,6 +175,7 @@ public sealed class HostTests
     {
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
+        await AuthClient.RegisterAsync(browser);
         Directory.CreateDirectory(Path.Combine(app.DataPath, "images"));
         await File.WriteAllTextAsync(Path.Combine(app.DataPath, "images", "test.png"), "private-image");
         await File.WriteAllTextAsync(Path.Combine(app.DataPath, "keys", "test.xml"), "private-key");

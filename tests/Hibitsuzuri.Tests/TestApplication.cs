@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Hibitsuzuri.Tests;
@@ -23,6 +24,7 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     } = new()
     {
         ["Site:PublicOrigin"] = "https://diary.example.test",
+        ["Authentication:SetupCode"] = "test-only-initial-setup-code",
         ["ReverseProxy:KnownProxies:0"] = "10.20.0.2"
     };
 
@@ -31,6 +33,9 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     {
         get; set;
     }
+
+    /// <summary>有効期限の境界試験に使う時計</summary>
+    public TestClock Clock { get; } = new();
 
     /// <summary>新規または再起動試験用の永続領域を選ぶ</summary>
     public TestApplication(string? dataPath = null)
@@ -53,7 +58,12 @@ public sealed class TestApplication : WebApplicationFactory<Program>
         {
             ["Storage:Directory"] = DataPath
         }));
-        builder.ConfigureServices(services => services.AddControllers().AddApplicationPart(typeof(ProbeController).Assembly));
+        builder.ConfigureServices(services =>
+        {
+            services.AddControllers().AddApplicationPart(typeof(ProbeController).Assembly);
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
+        });
     }
 
     /// <summary>自動転送しないHTTPSクライアントを作成する</summary>
