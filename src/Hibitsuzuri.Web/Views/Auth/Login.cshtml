@@ -14,9 +14,15 @@
         <p class="muted">保持しない場合は8時間で期限切れになります。</p>
         <button class="button primary" type="submit">ログイン</button>
     </form>
+    <form class="account-form passkey-form" data-purpose="login">
+        @Html.AntiForgeryToken()
+        <button class="button" type="submit">Passkeyでログイン</button>
+        <p role="status" class="passkey-status"></p>
+    </form>
     <p><a href="/auth/recovery">リカバリーコードで復旧</a></p>
     @if (ViewData["RegistrationEnabled"] is true)
     {
         <p><a href="/auth/register">ユーザー登録</a></p>
     }
 </section>
+<script src="~/js/passkeys.js" asp-append-version="true" defer></script>

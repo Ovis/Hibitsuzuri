@@ -37,6 +37,7 @@ public static class AuthConfiguration
         builder.Services.AddScoped<AuthAudit>();
         builder.Services.AddScoped<AuthOperationFilter>();
         builder.Services.AddSingleton<AuthWriteGate>();
+        builder.Services.AddSingleton<PasskeyCeremonies>();
         builder.Services.AddHostedService<AuthMaintenance>();
 
         builder.Services.AddOptions<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme)

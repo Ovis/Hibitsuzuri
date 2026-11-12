@@ -355,6 +355,16 @@ select:disabled {
     margin-bottom: 24px;
 }
 
+.credential-row {
+    padding: 24px 0 0;
+    margin-top: 24px;
+    border-top: 1px solid var(--line);
+}
+
+.passkey-status {
+    overflow-wrap: anywhere;
+}
+
 .account-form input:not([type="checkbox"]) {
     width: 100%;
     min-width: 0;

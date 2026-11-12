@@ -13,3 +13,11 @@
         <button type="submit" class="button primary">本人確認する</button>
     </form>
 </section>
+<section class="paper settings-panel">
+    <form class="account-form passkey-form" data-purpose="reauthenticate" data-return-url="@(Url.IsLocalUrl(Model.ReturnUrl) ? Model.ReturnUrl : "/account")">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="button">Passkeyで本人確認</button>
+        <p role="status" class="passkey-status"></p>
+    </form>
+</section>
+<script src="~/js/passkeys.js" asp-append-version="true" defer></script>
