@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "表示設定";
+    ViewData["Navigation"] = "appearance";
+}
+<div class="page-heading">
+    <p class="eyebrow">APPEARANCE</p>
+    <h1>表示設定</h1>
+    <p class="muted">このブラウザでの表示を設定します。</p>
+</div>
+<noscript><p class="notice">表示設定を変更するにはJavaScriptを有効にしてください。</p></noscript>
+<section class="paper settings-panel" aria-labelledby="theme-title">
+    <h2 id="theme-title">テーマと配色</h2>
+    <div class="settings-fields">
+        <label for="appearance-mode">
+            テーマ
+            <select id="appearance-mode" disabled>
+                <option value="light">ライト</option>
+                <option value="dark">ダーク</option>
+            </select>
+        </label>
+        <label for="appearance-color">
+            ライトの配色
+            <select id="appearance-color" aria-describedby="color-help" disabled>
+                <option value="neutral">ニュートラル</option>
+                <option value="purple">スモーキーパープル</option>
+                <option value="warm">ウォームグレー</option>
+                <option value="blue">ミストブルー</option>
+            </select>
+        </label>
+    </div>
+    <p id="color-help" class="muted">ダークでは固定の配色を使います。ライトの配色は保持されます。</p>
+    <p id="appearance-status" class="muted" role="status" aria-live="polite"></p>
+    <p id="appearance-warning" class="notice" role="alert" hidden></p>
+    <div class="appearance-preview" aria-label="表示のプレビュー">
+        <div class="preview-menu">メニューの配色</div>
+        <div class="preview-paper">
+            <h3>本文のプレビュー</h3>
+            <p>文字と背景の見え方を確認できます。</p>
+            <span class="preview-accent">アクセントの文字</span>
+        </div>
+    </div>
+</section>
