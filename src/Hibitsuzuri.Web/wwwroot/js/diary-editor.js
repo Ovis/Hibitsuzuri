@@ -1,4 +1,5 @@
 import { DiaryDrafts, saveIntent, validContent } from './diary-drafts.js';
+import { createImageEditor } from './diary-images.js';
 
 const form = document.querySelector('#diary-editor');
 const content = document.querySelector('#diary-content');
@@ -21,6 +22,16 @@ let draftTimer;
 let previewTimer;
 let previewRequest;
 
+const images = createImageEditor({
+    form, content, draftId, post, changed, showNotice,
+    isBusy: () => busy,
+    setBusy: value => {
+        busy = value;
+        content.readOnly = value;
+        document.querySelector('#save-entry').disabled = value;
+    }
+});
+
 function showNotice(message) {
     notice.textContent = message;
     notice.hidden = false;
@@ -40,6 +51,7 @@ function persistDraft() {
     try {
         drafts.save({ id: draftId, content: content.value, baseContent, version, operation, savedAt: Date.now() });
         draftStatus.textContent = `下書き保存 ${new Date().toLocaleTimeString()}（日記は未保存）`;
+        images.renew(content.value);
     } catch {
         draftStatus.textContent = '下書きを保存できません。容量・保存の許可を確認し、本文をコピーしてください。';
     }
@@ -50,6 +62,8 @@ function removeCurrentDraft() {
     if (drafts) {
         drafts.remove(draftId);
     }
+
+    return images.renew('');
 }
 
 async function post(url, fields, signal) {
@@ -142,6 +156,7 @@ function renderCandidates(candidates) {
 
             try {
                 drafts.remove(draft.id);
+                images.renew('', draft.id);
                 renderCandidates(drafts.list().filter(item => item.id !== draftId));
             } catch {
                 showNotice('下書きを破棄できませんでした。保存領域の許可を確認してください。');
@@ -213,7 +228,7 @@ form.addEventListener('submit', async event => {
         operation = null;
 
         try {
-            removeCurrentDraft();
+            await removeCurrentDraft();
         } catch {
             showNotice('日記は保存できましたが、ブラウザの下書きを削除できませんでした。下書きの保存日時を確認して整理してください。');
             const back = document.createElement('a');
@@ -263,17 +278,25 @@ document.querySelector('#use-latest').addEventListener('click', () => {
     changed();
 });
 
-document.querySelector('#cancel-edit').addEventListener('click', () => {
+document.querySelector('#cancel-edit').addEventListener('click', async () => {
     if (busy || (dirty() && !window.confirm('編集中の変更を破棄しますか？ この画面の下書きも削除します。'))) {
         return;
     }
 
+    busy = true;
+    content.readOnly = true;
+    document.querySelector('#save-entry').disabled = true;
+
     try {
-        removeCurrentDraft();
+        await removeCurrentDraft();
         leaving = true;
         window.location.assign(form.dataset.return);
     } catch {
         showNotice('下書きを削除できませんでした。本文はこの画面に残しています。');
+    } finally {
+        busy = false;
+        content.readOnly = false;
+        document.querySelector('#save-entry').disabled = false;
     }
 });
 
@@ -358,3 +381,4 @@ document.querySelector('#word-count').textContent = `${[...content.value].length
 
 // 初期化に失敗した画面から通常のフォーム送信で入力を失わないよう、準備後だけ有効にする。
 document.querySelector('#save-entry').disabled = false;
+content.disabled = false;

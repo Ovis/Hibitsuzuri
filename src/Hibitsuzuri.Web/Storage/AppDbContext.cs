@@ -1,6 +1,7 @@
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
+using Hibitsuzuri.Web.Images;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,15 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>所有者だけが参照できる添付画像</summary>
+    public DbSet<DiaryImage> DiaryImages => Set<DiaryImage>();
+
+    /// <summary>下書きごとの画像の有効期限</summary>
+    public DbSet<ImageDraftLease> ImageDraftLeases => Set<ImageDraftLease>();
+
+    /// <summary>日記と保持中の履歴による画像参照</summary>
+    public DbSet<DiaryImageReference> DiaryImageReferences => Set<DiaryImageReference>();
+
     /// <summary>本人の記念日と個別の表示先</summary>
     public DbSet<Anniversary> Anniversaries => Set<Anniversary>();
 
@@ -51,6 +61,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         base.OnModelCreating(builder);
 
         builder.Entity<Holiday>().HasKey(x => x.Date);
+
+        builder.Entity<DiaryImage>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<DiaryImage>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<ImageDraftLease>().HasKey(x => new { x.ImageId, x.DraftId });
+        builder.Entity<ImageDraftLease>().HasOne<DiaryImage>().WithMany().HasForeignKey(x => x.ImageId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<ImageDraftLease>().HasIndex(x => x.ExpiresAt);
+        builder.Entity<DiaryImageReference>().HasKey(x => new { x.ImageId, x.EntryId });
+        builder.Entity<DiaryImageReference>().HasOne<DiaryImage>().WithMany().HasForeignKey(x => x.ImageId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<DiaryImageReference>().HasOne<DiaryEntry>().WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Anniversary>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Anniversary>().Property(x => x.Version).IsConcurrencyToken();

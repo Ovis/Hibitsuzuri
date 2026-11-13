@@ -4,7 +4,7 @@
     ViewData["Navigation"] = "calendar";
 }
 <header class="page-header diary-heading"><h1>記念日</h1><a href="/calendar">カレンダーへ</a></header>
-<section class="paper">
+<section class="paper settings-panel">
     <h2>@(Model.IsNew ? "記念日を追加" : "記念日を編集")</h2>
     <form method="post" action="/anniversaries" class="form-stack">
         @Html.AntiForgeryToken()
@@ -37,7 +37,7 @@
         <div><button class="primary" type="submit">保存</button> <a href="/anniversaries">入力をやめる</a></div>
     </form>
 </section>
-<section class="paper spacer">
+<section class="paper settings-panel spacer">
     <h2>登録済みの記念日</h2>
     @if (Model.Items.Count == 0)
     {

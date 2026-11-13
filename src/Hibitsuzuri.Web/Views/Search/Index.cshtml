@@ -37,7 +37,7 @@ else if (Model.Keyword.Length > 0)
     }
     @foreach (var entry in Model.Entries)
     {
-        <article class="paper spacer">
+        <article class="paper record-card spacer">
             <p class="eyebrow">@Model.Books.Single(x => x.Id == entry.NotebookId).Name</p>
             <h2><a href="/diary/@entry.NotebookId/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日（ddd）")</a></h2>
             <p class="search-snippet">@Html.Raw(DiarySearch.Snippet(entry.PlainText, Model.Keyword))</p>

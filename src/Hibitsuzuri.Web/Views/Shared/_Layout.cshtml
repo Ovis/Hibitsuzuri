@@ -57,5 +57,13 @@
             <div class="content">@RenderBody()</div>
         </main>
     </div>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <dialog id="image-lightbox" aria-label="画像の拡大表示">
+            <button type="button" data-close-image autofocus>閉じる</button>
+            <img alt="拡大した添付画像" />
+        </dialog>
+        <script src="~/js/image-lightbox.js" asp-append-version="true" defer></script>
+    }
 </body>
 </html>

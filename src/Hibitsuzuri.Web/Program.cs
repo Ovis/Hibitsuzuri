@@ -1,7 +1,9 @@
+using System.Globalization;
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
+using Hibitsuzuri.Web.Images;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HostFiltering;
@@ -17,6 +19,13 @@ public partial class Program
     /// <summary>永続領域とDBの準備後にHTTPリクエストの受付を開始する</summary>
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "image-convert")
+        {
+            return ImageConverter.Run(args);
+        }
+
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("ja-JP");
         var builder = WebApplication.CreateBuilder(args);
         if (args is ["healthcheck"])
         {
@@ -33,6 +42,9 @@ public partial class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<DiaryMarkdown>();
         builder.Services.AddScoped<CalendarReader>();
+        builder.Services.AddScoped<ImageStore>();
+        builder.Services.AddSingleton<ImageWorker>();
+        builder.Services.AddHostedService<ImageMaintenance>();
         builder.AddAccountAuthentication(site);
 
         builder.Services.AddHttpClient<HolidaySource>(client => client.Timeout = TimeSpan.FromSeconds(30))

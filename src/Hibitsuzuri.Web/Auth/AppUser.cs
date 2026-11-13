@@ -5,6 +5,12 @@ namespace Hibitsuzuri.Web.Auth;
 /// <summary>標準Identityの認証情報と、利用可否・復旧の状態</summary>
 public sealed class AppUser : IdentityUser
 {
+    /// <summary>次回以降の画像取り込みで原本を保持する設定</summary>
+    public bool KeepOriginalImages
+    {
+        get; set;
+    }
+
     /// <summary>ユーザー管理を許可する権限。記録の所有権は付与しない</summary>
     public bool IsAdmin
     {

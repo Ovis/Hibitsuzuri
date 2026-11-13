@@ -99,6 +99,9 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.Property<bool>("IsSuspended")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("KeepOriginalImages")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("INTEGER");
 
@@ -461,6 +464,84 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("Notebooks");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.DiaryImage", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotebookId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("DiaryImages");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.DiaryImageReference", b =>
+                {
+                    b.Property<string>("ImageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntryId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ImageId", "EntryId");
+
+                    b.HasIndex("EntryId");
+
+                    b.ToTable("DiaryImageReferences");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.ImageDraftLease", b =>
+                {
+                    b.Property<string>("ImageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DraftId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ImageId", "DraftId");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.ToTable("ImageDraftLeases");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -693,6 +774,45 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.DiaryImage", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.DiaryImageReference", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.DiaryEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hibitsuzuri.Web.Images.DiaryImage", null)
+                        .WithMany()
+                        .HasForeignKey("ImageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Images.ImageDraftLease", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Images.DiaryImage", null)
+                        .WithMany()
+                        .HasForeignKey("ImageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Diary;
+using Hibitsuzuri.Web.Images;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,8 @@ namespace Hibitsuzuri.Web.Controllers;
 [RequestSizeLimit(1500000)]
 // URLエンコードでは1文字が最大12バイトになる。本文自体の上限は別途スカラー値で検証する。
 [RequestFormLimits(ValueLengthLimit = 1200000)]
-public sealed class DiaryController(AppDbContext database, TimeProvider clock, DiaryMarkdown markdown, Hibitsuzuri.Web.Calendar.CalendarReader calendar) : Controller
+public sealed class DiaryController(AppDbContext database, TimeProvider clock, DiaryMarkdown markdown,
+    Hibitsuzuri.Web.Calendar.CalendarReader calendar, ImageStore images) : Controller
 {
     /// <summary>管理者であっても越えられない所有者境界</summary>
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException();
@@ -80,7 +82,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
 
     /// <summary>保存せずに共通Markdown規則のプレビューを返す</summary>
     [HttpPost("/api/diary/preview")]
-    public IActionResult Preview(string? content)
+    public async Task<IActionResult> Preview(string? content)
     {
         content = DiaryMarkdown.NormalizeLineEndings(content ?? "");
         if (!AuthRules.ValidText(content ?? "", 0, 100000))
@@ -93,7 +95,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
 
         return Json(new
         {
-            html = markdown.Render(content ?? "")
+            html = await images.RenderAsync(Owner, content ?? "")
         });
     }
 
@@ -139,6 +141,19 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
                 {
                     message = "同じ保存IDで異なる内容は送信できません。再読み込みして確認してください。"
                 });
+        }
+
+        var referencedImages = markdown.ImageIds(content);
+        if (referencedImages.Count > 0)
+        {
+            var available = (await images.AvailableAsync(Owner, referencedImages)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+            if (!referencedImages.IsSubsetOf(available))
+            {
+                return BadRequest(new
+                {
+                    message = "利用できない画像が含まれます。期限切れの画像を再選択するか、本文から画像の参照を削除してください。本文は編集欄に残っています。"
+                });
+            }
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync();
@@ -192,6 +207,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             ResultVersion = entry.Version
         });
         await database.SaveChangesAsync();
+        await images.UpdateReferencesAsync(entry);
         await transaction.CommitAsync();
 
         return Json(new
@@ -312,7 +328,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             Entry = entry,
             Revisions = revisions,
             Calendar = await calendar.ReadAsync(Owner, bookId, day),
-            Html = entry is null ? "" : markdown.Render(entry.Content)
+            Html = entry is null ? "" : await images.RenderAsync(Owner, entry.Content)
         };
     }
 

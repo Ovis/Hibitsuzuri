@@ -1,5 +1,5 @@
 @model Hibitsuzuri.Web.Diary.DiaryYears
-@inject Hibitsuzuri.Web.Diary.DiaryMarkdown Markdown
+@inject Hibitsuzuri.Web.Images.ImageStore Images
 @{
     ViewData["Title"] = "この日の記録";
     ViewData["Navigation"] = "home";
@@ -12,8 +12,8 @@
 }
 @foreach (var entry in Model.Entries)
 {
-    <section class="paper spacer">
+    <section class="paper record-card spacer">
         <h2><a href="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日（ddd）")</a></h2>
-        <article class="prose">@Html.Raw(Markdown.Render(entry.Content))</article>
+        <article class="prose">@Html.Raw(await Images.RenderAsync(Model.Book.UserId, entry.Content))</article>
     </section>
 }

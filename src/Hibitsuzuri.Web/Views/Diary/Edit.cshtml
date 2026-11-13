@@ -1,5 +1,6 @@
 @using System.Security.Claims
 @model Hibitsuzuri.Web.Diary.DiaryPage
+@inject Hibitsuzuri.Web.Images.ImageStore Images
 @{
     ViewData["Title"] = Model.Day + " の編集";
     ViewData["Navigation"] = "home";
@@ -60,7 +61,7 @@
             <div class="editor-pane input-pane">
                 <label class="pane-label" for="diary-content">Markdown</label>
                 @* textarea直後の改行はHTMLパーサーが除去するため、本文先頭の改行とは分ける。 *@
-                <textarea id="diary-content" spellcheck="true" placeholder="日記の本文を入力">
+                <textarea id="diary-content" spellcheck="true" placeholder="日記の本文を入力" disabled>
 @Model.Entry?.Content</textarea>
             </div>
             <section class="editor-pane preview-pane" aria-label="プレビュー">
@@ -75,6 +76,16 @@
         </div>
     </section>
 
+    <section class="settings-panel">
+        <h2>添付画像</h2>
+        <label for="image-files">画像を追加</label>
+        <input id="image-files" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
+        <p class="muted">JPEG・PNG・WebP・GIF、1枚20MiB以内。HEIC/HEIFはJPEG等へ変換してください。<a href="/settings/images" target="_blank" rel="noopener noreferrer">保存設定</a></p>
+        <p id="image-status" role="status">画像を確認しています。</p>
+        <div id="image-list" class="attachment-list"></div>
+        <p class="muted">下書きだけの画像は最後の下書き保存から30日間保持します。本文の下書きには期限がありません。日記・履歴に残る画像は保持されます。</p>
+    </section>
+
     <details id="history" class="settings-panel">
         <summary>編集履歴（過去 @Model.Revisions.Count 版）</summary>
         <p class="muted">読み込み後に確認し、明示保存すると現行版に反映されます。</p>
@@ -86,6 +97,10 @@
             </div>
             <textarea id="revision-@revision.Id" hidden>
 @revision.Content</textarea>
+            <details>
+                <summary>この版の本文・画像を見る</summary>
+                <article class="prose">@Html.Raw(await Images.RenderAsync(Model.Book.UserId, revision.Content))</article>
+            </details>
         }
     </details>
 
