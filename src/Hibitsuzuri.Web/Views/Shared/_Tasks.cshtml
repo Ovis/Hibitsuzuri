@@ -1,0 +1,150 @@
+@model Hibitsuzuri.Web.Tasks.TaskPage
+@{
+    var past = Model.Day < Model.Today;
+    var paused = Model.Day is not null && Model.Books.FirstOrDefault(x => x.Id == Model.BookId)?.TasksPausedOn is not null;
+}
+<link rel="stylesheet" href="~/css/tasks.css" asp-append-version="true" />
+<section class="task-app @(Model.Day is null ? "" : "paper spacer")" data-task-app data-book="@Model.BookId" data-day="@Model.Day?.ToString("yyyy-MM-dd")" data-today="@Model.Today.ToString("yyyy-MM-dd")" data-readonly="@((past || paused).ToString().ToLowerInvariant())">
+    @Html.AntiForgeryToken()
+    <div class="diary-heading">
+        <h2>@(Model.Day is null ? "タスク一覧" : "この日のタスク")</h2>
+        @if (!past && !paused && Model.Books.Any(x => x.TasksPausedOn is null))
+        {
+            <button type="button" class="button primary" data-add-task>＋ タスクを追加</button>
+        }
+    </div>
+    @if (past)
+    {
+        <p class="muted">過去の日付は閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
+    }
+    else if (paused)
+    {
+        <p class="notice">この日記帳のタスクは停止中です。再開は<a href="/books/@Model.BookId">日記帳の設定</a>から行えます。</p>
+    }
+    @if (Model.Day is null)
+    {
+        <form data-task-filters>
+            <div class="task-tabs" aria-label="タスクの状態">
+                <button type="button" data-mode="pending" aria-pressed="true">未完了</button>
+                <button type="button" data-mode="completed" aria-pressed="false">完了済み</button>
+            </div>
+            <div class="task-tabs" aria-label="期限の有無">
+                <button type="button" data-kind="all" aria-pressed="true">すべて <span data-count="all">0</span></button>
+                <button type="button" data-kind="dated" aria-pressed="false">期限あり <span data-count="dated">0</span></button>
+                <button type="button" data-kind="undated" aria-pressed="false">期限なし <span data-count="undated">0</span></button>
+            </div>
+            <details class="task-filters" open>
+                <summary>検索・絞り込み <span data-filter-summary></span></summary>
+                <div class="task-fields">
+                    <label>日記帳<select name="bookId"><option value="">すべての日記帳</option>
+                        @foreach (var book in Model.Books)
+                        {
+                            <option value="@book.Id" selected="@(book.Id == Model.BookId)">@book.Name@(book.TasksPausedOn is null ? "" : "（停止中）")</option>
+                        }
+                    </select></label>
+                    <label>件名・メモ<input name="query" type="search" maxlength="200" placeholder="キーワード" /></label>
+                    <label>期限<select name="quick"><option value="all">すべて</option><option value="overdue">期限切れ</option><option value="today">今日</option></select></label>
+                    <label data-pending-filter>繰り返しの表示期限<input type="date" name="through" value="@Hibitsuzuri.Web.Tasks.TaskSchedule.Offset(Model.Today, 30).ToString("yyyy-MM-dd")" min="@Model.Today.ToString("yyyy-MM-dd")" max="9999-12-31" /></label>
+                    <label data-completed-filter hidden>完了した期間<select name="period"><option value="30">直近30日</option><option value="month">今月</option><option value="previous">先月</option><option value="custom">期間を指定</option><option value="all">すべて</option></select></label>
+                    <label data-custom-period hidden>開始日<input name="start" type="date" /></label>
+                    <label data-custom-period hidden>終了日<input name="end" type="date" /></label>
+                    <button type="submit" class="button">絞り込む</button>
+                </div>
+            </details>
+        </form>
+    }
+    <p data-task-status role="status"></p>
+    <div data-task-waiting></div>
+    <div data-task-list></div>
+    <div class="task-pagination" data-task-pagination></div>
+    <div data-task-toast role="status" hidden><span></span> <button type="button" data-task-undo>元に戻す</button></div>
+
+    <dialog class="task-dialog" data-task-detail aria-labelledby="task-detail-title">
+        <header><h2 id="task-detail-title"></h2><button type="button" data-close-detail aria-label="詳細を閉じる">×</button></header>
+        <div class="task-dialog-body">
+            <p data-detail-meta class="muted"></p>
+            <div data-detail-memo class="task-memo"></div>
+            <p data-detail-repeat></p>
+        </div>
+        <footer><button type="button" data-delete-task>削除</button><button type="button" class="button primary" data-edit-task>編集</button></footer>
+    </dialog>
+
+    <dialog class="task-dialog" data-task-delete aria-labelledby="task-delete-title">
+        <header><h2 id="task-delete-title">削除する範囲</h2><button type="button" data-close-delete aria-label="削除を閉じる">×</button></header>
+        <div class="task-dialog-body">
+            <p data-delete-error role="alert" class="notice" hidden></p>
+            <label>削除する範囲<select data-delete-scope><option value="once">今回のみ（スキップ）</option><option value="following">今回以降</option></select></label>
+            <p data-delete-retained></p>
+        </div>
+        <footer><button type="button" data-cancel-delete>キャンセル</button><button type="button" data-confirm-delete>削除を確定</button></footer>
+    </dialog>
+
+    <dialog class="task-dialog" data-task-editor aria-labelledby="task-editor-title">
+        <form data-task-form>
+            <header><h2 id="task-editor-title">タスクを追加</h2><button type="button" data-close-editor aria-label="編集を閉じる">×</button></header>
+            <div class="task-dialog-body">
+                <p data-task-error role="alert" class="notice" hidden></p>
+                <label data-scope-field hidden>変更する範囲<select name="scope"><option value="once">今回のみ</option><option value="following">今回以降</option></select></label>
+                <p data-scope-notice class="muted" hidden></p>
+                <label>日記帳<select name="notebookId" required>
+                    @foreach (var book in Model.Books)
+                    {
+                        <option value="@book.Id" disabled="@(book.TasksPausedOn is not null)">@book.Name@(book.TasksPausedOn is null ? "" : "（停止中）")</option>
+                    }
+                </select></label>
+                <label>件名<input name="title" maxlength="400" required /></label>
+                <label>メモ<textarea name="memo" maxlength="20000" rows="5"></textarea></label>
+                <label data-due-field>期限<input type="date" name="dueDate" /></label>
+                <label data-repeat-toggle><input type="checkbox" name="repeating" /> 繰り返す</label>
+                <fieldset data-repeat-fields hidden disabled>
+                    <legend>繰り返しの条件</legend>
+                    <div class="task-fields">
+                        <label>開始日<input type="date" name="startDate" required /></label>
+                        <label>周期<select name="repeatKind"><option value="daily">日ごと</option><option value="weekly">週ごと</option><option value="monthly">月ごと</option><option value="yearly">年ごと</option></select></label>
+                        <label>間隔<input name="interval" type="number" min="1" max="52" value="1" required /></label>
+                        <label data-yearly hidden>対象月<select name="month">
+                            @for (var month = 1; month <= 12; month++)
+                            {
+                                <option value="@month">@month 月</option>
+                            }
+                        </select></label>
+                    </div>
+                    <fieldset data-weekly hidden><legend>曜日（複数選択可）</legend><div class="task-weekdays">
+                        @for (var weekday = 0; weekday < 7; weekday++)
+                        {
+                            <label><input type="checkbox" name="weekdays" value="@weekday" checked="@(weekday is >= 1 and <= 5)" />@("日月火水木金土"[weekday])</label>
+                        }
+                    </div></fieldset>
+                    <div data-monthly hidden>
+                        <label>月の指定方法<select name="monthMode"><option value="day">日付を指定</option><option value="weekday">第○曜日・最後の曜日</option><option value="end">月末から指定</option></select></label>
+                        <div class="task-fields">
+                            <label data-month-day>日<input name="monthDay" type="number" min="1" max="31" value="1" /></label>
+                            <label data-month-day>存在しない日<select name="missing"><option value="skip">スキップする</option><option value="last">その月の最終日にする</option></select></label>
+                            <label data-month-weekday hidden>何番目<select name="ordinal"><option value="1">第1</option><option value="2">第2</option><option value="3">第3</option><option value="4">第4</option><option value="5">第5</option><option value="-1">最後</option></select></label>
+                            <label data-month-weekday hidden>曜日<select name="weekday">
+                                @for (var weekday = 0; weekday < 7; weekday++)
+                                {
+                                    <option value="@weekday">@("日月火水木金土"[weekday])曜日</option>
+                                }
+                            </select></label>
+                            <label data-month-end hidden>月末の何日前<input name="endOffset" type="number" min="0" max="27" value="0" /></label>
+                        </div>
+                        <p class="muted">第5曜日がない月はスキップします。</p>
+                    </div>
+                    <label>終了<select name="ending"><option value="none">終了しない</option><option value="until">日付を指定</option><option value="count">回数を指定</option></select></label>
+                    <label data-ending-until hidden>終了日（含む）<input type="date" name="until" /></label>
+                    <label data-ending-count hidden>回数<input type="number" name="count" min="1" max="10000" value="10" /></label>
+                    <details>
+                        <summary>休日の調整</summary>
+                        <label>休日に当たる場合<select name="adjustment"><option value="none">そのまま</option><option value="skip">スキップ</option><option value="previous">前の平日へ</option><option value="next">次の平日へ</option></select></label>
+                        <label><input type="checkbox" name="avoidWeekends" /> 土日を避ける</label>
+                        <label><input type="checkbox" name="avoidHolidays" /> 祝日・休日を避ける</label>
+                        <p class="muted">祝日が未収録の場合は、データが揃うまで予定を保留します。終了日と回数は調整前の予定を基準にし、自動スキップは回数に含めません。</p>
+                    </details>
+                </fieldset>
+            </div>
+            <footer><button type="button" data-cancel-editor>キャンセル</button><button type="submit" class="button primary">保存する</button></footer>
+        </form>
+    </dialog>
+</section>
+<script src="~/js/tasks.js" asp-append-version="true" defer></script>

@@ -83,6 +83,8 @@ else
     </section>
 }
 
+<partial name="_Tasks" model="new Hibitsuzuri.Web.Tasks.TaskPage(Model.Books, Model.Book.Id, Model.Today, Model.Date)" />
+
 <aside class="paper mini-calendar spacer">
     <div class="diary-heading"><h2>@Model.Date.ToString("yyyy年M月")</h2><a href="/calendar?bookId=@Model.Book.Id&month=@Model.Date.ToString("yyyy-MM")">カレンダー</a></div>
     @if (Model.Calendar is not null)

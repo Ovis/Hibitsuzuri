@@ -75,7 +75,7 @@ public sealed class NotebooksController(AppDbContext database) : Controller
         if (!ModelState.IsValid)
         {
             // 競合時も入力を保持し、古い版のまま再送して上書きできないようにする。
-            return View(new Notebook { Id = id, Name = name ?? "", Template = template, Version = version ?? "" });
+            return View(new Notebook { Id = id, Name = name ?? "", Template = template, Version = version ?? "", TasksPausedOn = book.TasksPausedOn });
         }
 
         book.Name = name ?? "";

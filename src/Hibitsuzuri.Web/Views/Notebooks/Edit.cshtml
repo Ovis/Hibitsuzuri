@@ -26,3 +26,14 @@
         <a href="/books">戻る</a>
     </div>
 </form>
+
+<section class="paper spacer">
+    <h2>タスクの停止</h2>
+    <p>停止中は閲覧のみになります。再開時は停止期間に到来した未操作の繰り返しをスキップし、以前の未完了や操作済みの回は残します。</p>
+    <form method="post" action="/tasks/pause/@Model.Id">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="version" value="@Model.Version" />
+        <input type="hidden" name="paused" value="@((Model.TasksPausedOn is null).ToString().ToLowerInvariant())" />
+        <button type="submit">@(Model.TasksPausedOn is null ? "タスクを停止する" : "タスクを再開する")</button>
+    </form>
+</section>

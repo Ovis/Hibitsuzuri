@@ -1,0 +1,229 @@
+.task-app {
+    min-width: 0;
+}
+
+.task-tabs, .task-pagination, .task-weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem;
+    margin: .8rem 0;
+}
+
+.task-tabs button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+}
+
+.task-filters {
+    margin: 1rem 0;
+    border: 1px solid var(--line);
+    border-radius: .7rem;
+    padding: .8rem;
+}
+
+.task-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: .8rem;
+    align-items: end;
+    margin: .8rem 0;
+}
+
+.task-app label {
+    display: grid;
+    gap: .35rem;
+    margin-bottom: .8rem;
+}
+
+.task-app label:has(input[type="checkbox"]) {
+    display: flex;
+    align-items: center;
+}
+
+.task-app input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.task-app input, .task-app select, .task-app textarea {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.task-row {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    padding: .65rem .3rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.task-row-main {
+    text-align: left;
+    background: transparent;
+    color: var(--ink);
+    border: 0;
+    padding: .3rem;
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: .4rem;
+    overflow-wrap: anywhere;
+}
+
+.task-row-main:hover {
+    background: var(--soft);
+}
+
+.completed .task-row-title {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+.task-overdue {
+    color: #a13c34;
+}
+
+[data-theme="dark"] .task-overdue {
+    color: #ffaca5;
+}
+
+.task-series {
+    margin: .8rem 0;
+    border: 1px solid var(--line);
+    border-radius: .6rem;
+    padding: .8rem;
+}
+
+.task-series summary {
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.task-dialog {
+    padding: 0;
+    width: min(620px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    border: 1px solid var(--line);
+    border-radius: .8rem;
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.task-dialog::backdrop {
+    background: #0007;
+}
+
+.task-dialog[open], .task-dialog form {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.task-dialog form {
+    max-height: calc(100dvh - 2rem);
+}
+
+.task-dialog header, .task-dialog footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.task-dialog header {
+    border-bottom: 1px solid var(--line);
+}
+
+.task-dialog header h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.task-dialog footer {
+    justify-content: flex-end;
+    border-top: 1px solid var(--line);
+}
+
+.task-dialog-body {
+    padding: 1rem;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.task-dialog fieldset {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    margin: 1rem 0;
+    padding: .8rem;
+}
+
+.task-memo {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+[data-task-toast] {
+    position: sticky;
+    bottom: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--control-border);
+    box-shadow: 0 3px 14px #0002;
+    border-radius: .5rem;
+    padding: .8rem;
+    z-index: 2;
+}
+
+.task-app [hidden] {
+    display: none !important;
+}
+
+.task-marker {
+    font-size: .9rem;
+    color: var(--accent);
+}
+
+@media (min-width: 701px) {
+    .task-filters > summary {
+        display: none;
+    }
+}
+
+@media (max-width: 700px) {
+    .task-app .diary-heading {
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .task-app .diary-heading h2 {
+        font-size: 1.15rem;
+    }
+
+    .task-tabs {
+        gap: .35rem;
+    }
+
+    .task-tabs button {
+        padding: .55rem .65rem;
+    }
+
+    .task-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .task-filters summary {
+        font-size: .9rem;
+    }
+
+    .task-dialog {
+        width: calc(100vw - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+}
