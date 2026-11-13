@@ -45,6 +45,7 @@
                     <a href="/search" aria-current="@(currentPage == "search" ? "page" : null)">検索</a>
                     <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
                     <a href="/settings/notifications" aria-current="@(currentPage == "notifications" ? "page" : null)">通知・アプリ</a>
+                    <a href="/data" aria-current="@(currentPage == "data" ? "page" : null)">データ管理</a>
                     <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
                     <form method="post" action="/auth/logout">
                         @Html.AntiForgeryToken()

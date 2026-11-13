@@ -1,0 +1,64 @@
+@model IReadOnlyList<Hibitsuzuri.Web.Diary.Notebook>
+@{
+    ViewData["Title"] = "データ管理";
+    ViewData["Navigation"] = "data";
+}
+
+<header class="page-header">
+    <h1>データ管理</h1>
+    <p class="muted">記録を手元に保存する、別の空アカウントへ移す。</p>
+</header>
+
+<section class="paper settings-panel">
+    <h2>Markdownで書き出す</h2>
+    <p>現在の日記本文と添付画像をZIPにまとめます。履歴・タスク・ゴミ箱は含みません。この形式からの復元はできません。</p>
+    <form method="post" action="/data/export" class="account-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="markdown" />
+        <label for="export-book">対象の日記帳</label>
+        <select id="export-book" name="bookId">
+            <option value="">すべて（アーカイブを含む）</option>
+            @foreach (var book in Model)
+            {
+                <option value="@book.Id">@book.Name@(book.Archived ? "（アーカイブ）" : "")</option>
+            }
+        </select>
+        <button class="button" type="submit">Markdown ZIPをダウンロード</button>
+    </form>
+</section>
+
+<section class="paper settings-panel spacer">
+    <h2>個人バックアップ</h2>
+    <p>日記帳・テンプレート・日記と過去5版・必要な画像・タスクとリマインダー・記念日をまとめます。アーカイブも含みます。</p>
+    <p>ゴミ箱・認証情報・通知端末・ブラウザ内の下書きは含みません。ZIPは暗号化されないため、保存先の取り扱いにご注意ください。</p>
+    <p class="muted">1回の上限：圧縮後2GB／展開後4GB。作成中は記録の更新を待機します。</p>
+    <form method="post" action="/data/export">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="backup" />
+        <button class="button primary" type="submit">バックアップZIPをダウンロード</button>
+    </form>
+</section>
+
+<section class="paper settings-panel spacer" id="restore-panel">
+    <h2>バックアップから復元</h2>
+    <p>記録のないアカウントに復元できます。既存の空の日記帳は残します。同名の日記帳がある場合は、先に名前を変更してください。</p>
+    <p>復元後はすべての端末の通知を停止します。必要な端末で「通知・アプリ」から有効にしてください。</p>
+    <form id="restore-upload" class="account-form">
+        @Html.AntiForgeryToken()
+        <label for="restore-file">個人バックアップZIP（2GB以内）</label>
+        <input id="restore-file" type="file" accept=".zip,application/zip" required />
+        <button class="button" type="submit">内容を確認する</button>
+    </form>
+    <p id="restore-status" role="status" aria-live="polite"></p>
+    <div id="restore-preview" hidden></div>
+    <form id="restore-confirm" class="account-form" hidden>
+        <label class="check-label"><input id="restore-accepted" type="checkbox" required /> この内容を復元し、すべての端末の通知を停止する</label>
+        <button class="button primary" type="submit">復元する</button>
+    </form>
+    <div class="actions">
+        <button id="restore-refresh" type="button">状態を確認</button>
+        <button id="restore-cancel" type="button" hidden>この復元を取り消す</button>
+    </div>
+    <p class="muted">検証後の確認期限は1時間です。通信が切れたときは「状態を確認」で結果を確認できます。</p>
+</section>
+<script src="~/js/data.js" asp-append-version="true" defer></script>

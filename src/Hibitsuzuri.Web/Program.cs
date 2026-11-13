@@ -1,5 +1,6 @@
 using System.Globalization;
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Backups;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
@@ -46,6 +47,9 @@ public partial class Program
         builder.Services.AddScoped<CalendarReader>();
         builder.Services.AddScoped<TaskSchedule>();
         builder.Services.AddScoped<TaskReader>();
+        builder.Services.AddScoped<BackupService>();
+        builder.Services.AddScoped<BackupRestore>();
+        builder.Services.AddHostedService<BackupMaintenance>();
 
         builder.Services.AddSingleton<PushKeys>();
         // 送信先URLには購読秘密が含まれるため、HTTPの自動リクエストログを使わない。

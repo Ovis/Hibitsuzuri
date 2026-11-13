@@ -11,7 +11,25 @@ namespace Hibitsuzuri.Web.Diary;
 public sealed class DiaryMarkdown
 {
     private readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
-        .DisableHtml().UsePipeTables().UseTaskLists().Build();
+        .DisableHtml().UsePipeTables().UseTaskLists().UsePreciseSourceLocation().Build();
+
+    /// <summary>画像URLの位置だけを書き換え、本文・コード・改行を保持する</summary>
+    public string RewriteImages(string text, Func<string, string> destination)
+    {
+        var replacements = Markdown.Parse(text, _pipeline).Descendants<LinkInline>()
+            .Where(x => x.IsImage && ImageId(x.Url) is not null)
+            .Select(x => (Span: x.Reference?.UrlSpan ?? x.UrlSpan, Url: destination(ImageId(x.Url) ?? "")))
+            .DistinctBy(x => x.Span.Start).OrderByDescending(x => x.Span.Start);
+        var result = new System.Text.StringBuilder(text);
+        foreach (var replacement in replacements)
+        {
+            var angled = text[replacement.Span.Start] == '<' && text[replacement.Span.End] == '>';
+            result.Remove(replacement.Span.Start, replacement.Span.Length);
+            result.Insert(replacement.Span.Start, angled ? "<" + replacement.Url + ">" : replacement.Url);
+        }
+
+        return result.ToString();
+    }
 
     /// <summary>フォーム送信時のCRLF化によって、編集欄と保存側の文字数がずれないようLFに揃える</summary>
     public static string NormalizeLineEndings(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');

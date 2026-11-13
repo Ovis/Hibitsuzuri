@@ -7,7 +7,7 @@ namespace Hibitsuzuri.Web.Images;
 public sealed class ImageWorker
 {
     /// <summary>子プロセスが正常終了した出力だけを採用する</summary>
-    public async Task<ImageResult> ConvertAsync(string input, string output, bool original, CancellationToken cancellationToken)
+    public async Task<ImageResult> ConvertAsync(string input, string output, bool original, CancellationToken cancellationToken, bool stored = false)
     {
         var start = new ProcessStartInfo("dotnet")
         {
@@ -20,7 +20,7 @@ public sealed class ImageWorker
         start.ArgumentList.Add("image-convert");
         start.ArgumentList.Add(input);
         start.ArgumentList.Add(output);
-        start.ArgumentList.Add(original ? "original" : "webp");
+        start.ArgumentList.Add(stored ? "stored" : original ? "original" : "webp");
         using var process = Process.Start(start) ?? throw new InvalidOperationException("画像処理を開始できません。");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));

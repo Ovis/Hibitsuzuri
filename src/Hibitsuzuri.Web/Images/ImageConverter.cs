@@ -19,7 +19,7 @@ public static class ImageConverter
 
         try
         {
-            var result = Convert(args[1], args[2], args[3] == "original");
+            var result = Convert(args[1], args[2], args[3] != "webp", args[3] == "stored");
             Console.Write(JsonSerializer.Serialize(result));
             return 0;
         }
@@ -31,9 +31,10 @@ public static class ImageConverter
     }
 
     /// <summary>寸法・実体を検証し、静止画だけを必要に応じてWebP化する</summary>
-    public static ImageResult Convert(string input, string output, bool original)
+    public static ImageResult Convert(string input, string output, bool original, bool stored = false)
     {
-        if (new FileInfo(input).Length is < 1 or > MaxBytes)
+        // 保存時の可逆変換で元の20MBを超えた画像も、画素数の制約を維持して検証する。
+        if (new FileInfo(input).Length < 1 || new FileInfo(input).Length > (stored ? 160000000 : MaxBytes))
         {
             throw new InvalidDataException();
         }

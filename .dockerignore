@@ -8,5 +8,7 @@
 **/bin/
 **/obj/
 **/data/
+!src/Hibitsuzuri.Web/Views/Data/
+!src/Hibitsuzuri.Web/Views/Data/**
 **/*.user
 **/*.db*
