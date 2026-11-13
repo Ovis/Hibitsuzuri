@@ -2,6 +2,7 @@ using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,12 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>ブラウザ単位のPush購読と通知表示設定</summary>
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+
+    /// <summary>各回・各端末への送信と重複抑止</summary>
+    public DbSet<PushDelivery> PushDeliveries => Set<PushDelivery>();
+
     /// <summary>通常タスクと繰り返し各回の操作記録</summary>
     public DbSet<TaskRecord> TaskRecords => Set<TaskRecord>();
 
@@ -81,6 +88,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<PushDevice>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<PushDevice>().HasIndex(x => new { x.UserId, x.BrowserId }).IsUnique();
+        builder.Entity<PushDevice>().HasIndex(x => x.EndpointHash);
+        builder.Entity<PushDelivery>().HasOne<PushDevice>().WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<PushDelivery>().HasIndex(x => new { x.DeviceId, x.Generation, x.TaskId, x.ReminderId, x.ScheduledAt }).IsUnique();
+        builder.Entity<PushDelivery>().HasIndex(x => new { x.Finished, x.NextAttemptAt });
 
         builder.Entity<TaskRecord>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<TaskRecord>().HasOne<TaskSeries>().WithMany().HasForeignKey(x => x.SeriesId).OnDelete(DeleteBehavior.Cascade);

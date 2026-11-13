@@ -3,6 +3,12 @@ namespace Hibitsuzuri.Web.Diary;
 /// <summary>所有者ごとに日記と新規作成時のひな形をまとめる</summary>
 public sealed class Notebook
 {
+    /// <summary>停止から再開した時点より過去の通知を送らない境界</summary>
+    public long NotificationAfter
+    {
+        get; set;
+    }
+
     /// <summary>停止開始日。停止中はタスクを閲覧のみにする</summary>
     public DateOnly? TasksPausedOn
     {

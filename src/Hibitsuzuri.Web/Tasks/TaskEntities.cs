@@ -3,6 +3,15 @@ namespace Hibitsuzuri.Web.Tasks;
 /// <summary>通常タスクと、繰り返しの各回に対する利用者の操作記録</summary>
 public sealed class TaskRecord
 {
+    /// <summary>個別操作した回に固定した通知設定</summary>
+    public string ReminderJson { get; set; } = "[]";
+
+    /// <summary>未完了へ戻したとき、この時刻以前の通知を再開しない</summary>
+    public long NotificationAfter
+    {
+        get; set;
+    }
+
     /// <summary>通常タスクはGUID、繰り返しは適用区間と元の予定日で識別する</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
@@ -80,6 +89,9 @@ public sealed class TaskSeries
 /// <summary>変更せず残すルールの適用区間</summary>
 public sealed class TaskSegment
 {
+    /// <summary>各回へ適用する期限基準の通知設定</summary>
+    public string ReminderJson { get; set; } = "[]";
+
     /// <summary>各回の識別に用いる区間ID</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
@@ -117,6 +129,12 @@ public sealed class TaskSegment
 /// <summary>必要な範囲だけ計算する予定の索引。利用者の操作記録とは分離する</summary>
 public sealed class TaskSlot
 {
+    /// <summary>祝日訂正で過去へ移った通知を自動送信しない境界</summary>
+    public long NotificationAfter
+    {
+        get; set;
+    }
+
     /// <summary>祝日更新による期限の変更も検出する表示版</summary>
     public string Version { get; set; } = Guid.NewGuid().ToString("N");
 

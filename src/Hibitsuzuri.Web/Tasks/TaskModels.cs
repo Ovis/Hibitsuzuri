@@ -1,10 +1,20 @@
 using Hibitsuzuri.Web.Diary;
+using Hibitsuzuri.Web.Notifications;
 
 namespace Hibitsuzuri.Web.Tasks;
 
 /// <summary>保存済みの操作と未操作の予定を同じ形で表示する</summary>
 public sealed class TaskRow
 {
+    /// <summary>共通設定または今回だけ変更した通知設定</summary>
+    public string ReminderJson { get; set; } = "[]";
+
+    /// <summary>再開・祝日訂正によって送信を許可しない過去の境界</summary>
+    public long NotificationAfter
+    {
+        get; set;
+    }
+
     /// <summary>祝日データが揃うまで期限と完了操作を確定させない</summary>
     public bool Waiting
     {
@@ -132,6 +142,15 @@ public sealed class TaskFilter
 /// <summary>版と操作IDを含むタスク変更要求</summary>
 public sealed class TaskChange
 {
+    /// <summary>nullは現在の設定を保持し、空の配列は通知なしへ変更する</summary>
+    public List<Reminder>? Reminders
+    {
+        get; set;
+    }
+
+    /// <summary>入力検証後だけに設定する永続化用の値</summary>
+    internal string PreparedReminders { get; set; } = "[]";
+
     /// <summary>同じ操作の再送を識別するUUID</summary>
     public string OperationId { get; set; } = "";
 

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Diary;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -148,7 +149,12 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             rule = segment is null ? null : RepeatRule.Read(segment.RuleJson),
             startDate = segment?.StartDate,
             seriesVersion = series?.Version,
-            retained
+            retained,
+            reminders = Reminders.Read(row.ReminderJson),
+            commonReminders = segment is null ? null : Reminders.Read(segment.ReminderJson),
+            notificationReview = row.NotificationAfter > 0 && Reminders.Read(row.ReminderJson)
+                .Any(x => Reminders.Resolve(x, row.DueDate, clock.LocalTimeZone) is { } at && at <= row.NotificationAfter),
+            timeZone = clock.LocalTimeZone.Id
         });
     }
 
@@ -253,6 +259,36 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             });
         }
 
+        if (change.Action == "save")
+        {
+            var original = row?.ReminderJson ?? "[]";
+            var due = change.Rule is null ? change.DueDate : change.StartDate;
+            var requested = change.Reminders ?? Reminders.Read(original);
+            if (change.Rule is not null && requested.Count != 0)
+            {
+                var state = await db.HolidayStates.SingleAsync();
+                var dates = await db.Holidays.Select(x => x.Date).ToListAsync();
+                var holidays = new HolidayCalendar(state.FirstYear, state.LastYear, dates.ToHashSet());
+                var start = change.StartDate.GetValueOrDefault();
+                var first = RepeatCalculator.Generate(change.Rule, start, start, DateOnly.MaxValue, holidays)
+                    .FirstOrDefault(x => x.Due != null || x.Waiting);
+                due = first?.Due ?? first?.Scheduled;
+                // 新しい区間へ過去の通知設定を複製して再配信しない。
+                original = "[]";
+            }
+
+            var error = Reminders.Prepare(requested, original, change.Rule is not null, due, row?.DueDate, clock, out var reminderJson);
+            if (error is not null)
+            {
+                return BadRequest(new
+                {
+                    message = error
+                });
+            }
+
+            change.PreparedReminders = reminderJson;
+        }
+
         await using var transaction = await db.Database.BeginTransactionAsync();
         var record = row is null ? null : await db.TaskRecords.SingleOrDefaultAsync(x => x.Id == row.Id);
         if (row is not null && record is null)
@@ -315,6 +351,10 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
         {
             // 二重クリックや再送で完了日時を更新しない。完了し直したときだけ新しい時刻を記録する。
             record.CompletedAt = change.Completed ? record.CompletedAt ?? clock.GetUtcNow().ToUnixTimeMilliseconds() : null;
+            if (!change.Completed)
+            {
+                record.NotificationAfter = clock.GetUtcNow().ToUnixTimeMilliseconds();
+            }
         }
         else if (change.Rule is not null)
         {
@@ -366,6 +406,7 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
                 record.DueDate = change.DueDate;
                 record.SearchText = DiarySearch.Normalize(change.Title + "\n" + change.Memo);
                 record.Edited = true;
+                record.ReminderJson = change.PreparedReminders;
             }
         }
 
@@ -415,6 +456,7 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             }
 
             book.TasksPausedOn = null;
+            book.NotificationAfter = clock.GetUtcNow().ToUnixTimeMilliseconds();
         }
 
         book.Version = Guid.NewGuid().ToString("N");
@@ -463,7 +505,9 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
                           ScheduledDate = slot.ScheduledDate,
                           Version = slot.Version,
                           Waiting = true,
-                          ReadOnly = book.TasksPausedOn != null
+                          ReadOnly = book.TasksPausedOn != null,
+                          ReminderJson = segment.ReminderJson,
+                          NotificationAfter = slot.NotificationAfter > book.NotificationAfter ? slot.NotificationAfter : book.NotificationAfter
                       }).SingleOrDefaultAsync();
     }
 
@@ -480,7 +524,8 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             Memo = change.Memo,
             SearchText = DiarySearch.Normalize(change.Title + "\n" + change.Memo),
             StartDate = change.StartDate ?? throw new InvalidOperationException(),
-            RuleJson = JsonSerializer.Serialize(change.Rule)
+            RuleJson = JsonSerializer.Serialize(change.Rule),
+            ReminderJson = change.PreparedReminders
         };
         db.TaskSegments.Add(segment);
 
@@ -500,17 +545,21 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
         SearchText = row.SearchText,
         DueDate = row.DueDate,
         CompletedAt = row.CompletedAt,
-        Version = row.Version
+        Version = row.Version,
+        ReminderJson = row.ReminderJson,
+        NotificationAfter = row.NotificationAfter
     };
 
     /// <summary>通常タスクは系列から独立した識別子を持つ</summary>
-    private static TaskRecord NewRecord(string bookId, TaskChange change, long? completedAt) => new()
+    private TaskRecord NewRecord(string bookId, TaskChange change, long? completedAt) => new()
     {
         NotebookId = bookId,
         Title = change.Title,
         Memo = change.Memo,
         DueDate = change.DueDate,
         SearchText = DiarySearch.Normalize(change.Title + "\n" + change.Memo),
-        CompletedAt = completedAt
+        CompletedAt = completedAt,
+        ReminderJson = change.PreparedReminders,
+        NotificationAfter = clock.GetUtcNow().ToUnixTimeMilliseconds()
     };
 }

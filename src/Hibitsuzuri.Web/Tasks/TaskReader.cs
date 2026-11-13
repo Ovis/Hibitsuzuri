@@ -27,7 +27,9 @@ public sealed class TaskReader(AppDbContext db, TaskSchedule schedule, TimeProvi
                           SegmentId = task.SegmentId,
                           ScheduledDate = task.ScheduledDate,
                           Version = task.Version,
-                          ReadOnly = book.TasksPausedOn != null
+                          ReadOnly = book.TasksPausedOn != null,
+                          ReminderJson = task.ReminderJson,
+                          NotificationAfter = task.NotificationAfter > book.NotificationAfter ? task.NotificationAfter : book.NotificationAfter
                       };
         var today = schedule.Today;
         var slots = from slot in db.TaskSlots.AsNoTracking()
@@ -53,7 +55,9 @@ public sealed class TaskReader(AppDbContext db, TaskSchedule schedule, TimeProvi
                         SegmentId = segment.Id,
                         ScheduledDate = slot.ScheduledDate,
                         Version = slot.Version,
-                        ReadOnly = book.TasksPausedOn != null
+                        ReadOnly = book.TasksPausedOn != null,
+                        ReminderJson = segment.ReminderJson,
+                        NotificationAfter = slot.NotificationAfter > book.NotificationAfter ? slot.NotificationAfter : book.NotificationAfter
                     };
 
         return records.Concat(slots);

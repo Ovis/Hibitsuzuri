@@ -440,6 +440,9 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("NotificationAfter")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Position")
                         .HasColumnType("INTEGER");
 
@@ -545,6 +548,113 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("ImageDraftLeases");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Notifications.PushDelivery", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Finished")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Generation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("NextAttemptAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProtectedToken")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReminderId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ScheduledAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("SentAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TaskId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Test")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Finished", "NextAttemptAt");
+
+                    b.HasIndex("DeviceId", "Generation", "TaskId", "ReminderId", "ScheduledAt")
+                        .IsUnique();
+
+                    b.ToTable("PushDeliveries");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Notifications.PushDevice", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BrowserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EnabledSince")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EndpointHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Generation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("LastTestAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProtectedSubscription")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ShowName")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndpointHash");
+
+                    b.HasIndex("UserId", "BrowserId")
+                        .IsUnique();
+
+                    b.ToTable("PushDevices");
+                });
+
             modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskMutation", b =>
                 {
                     b.Property<string>("UserId")
@@ -610,6 +720,13 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("NotificationAfter")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReminderJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly?>("ScheduledDate")
                         .HasColumnType("TEXT");
 
@@ -655,6 +772,10 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Memo")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReminderJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -718,6 +839,9 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("Frozen")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NotificationAfter")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateOnly>("ScheduledDate")
@@ -1031,6 +1155,24 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasOne("Hibitsuzuri.Web.Images.DiaryImage", null)
                         .WithMany()
                         .HasForeignKey("ImageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Notifications.PushDelivery", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Notifications.PushDevice", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Notifications.PushDevice", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

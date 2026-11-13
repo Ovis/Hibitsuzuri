@@ -1,5 +1,6 @@
 using System.Globalization;
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -38,7 +39,7 @@ public sealed class TaskSchedule(AppDbContext db, TimeProvider clock, AuthWriteG
     public async Task FreezePastAsync(CancellationToken cancellationToken)
     {
         var books = await db.TaskSeries.Select(x => x.NotebookId).Distinct().ToArrayAsync(cancellationToken);
-        await EnsureLockedAsync(books, null, Today);
+        await EnsureLockedAsync(books, null, Offset(Today, 365));
     }
 
     /// <summary>日付を最大・最小値で止め、暦の端でもオーバーフローさせない</summary>
@@ -122,7 +123,8 @@ public sealed class TaskSchedule(AppDbContext db, TimeProvider clock, AuthWriteG
                     && (rule.Count != null || (x.ScheduledDate >= first && x.ScheduledDate <= last))).ToListAsync();
                 var operations = await db.TaskRecords.AsNoTracking().Where(x => x.SegmentId == segment.Id).ToListAsync();
                 var operated = operations.Select(x => x.ScheduledDate).ToHashSet();
-                var frozen = prior.Where(x => !x.Waiting && (x.Frozen || operated.Contains(x.ScheduledDate) || (x.DueDate ?? x.ScheduledDate) <= Today))
+                var frozen = prior.Where(x => !x.Waiting && (x.Frozen || operated.Contains(x.ScheduledDate) || (x.DueDate ?? x.ScheduledDate) <= Today
+                    || Reminders.HasArrived(segment.ReminderJson, x.DueDate, clock)))
                     .ToDictionary(x => x.ScheduledDate, x => new ScheduledTask(x.ScheduledDate, x.DueDate, false));
                 // 通常タスクからの変換では索引より先に初回の完了記録ができる。
                 foreach (var operation in operations.Where(x => x.ScheduledDate != null && x.CompletedAt != null))
@@ -145,7 +147,8 @@ public sealed class TaskSchedule(AppDbContext db, TimeProvider clock, AuthWriteG
                         && !x.Frozen && (x.Waiting || (x.DueDate ?? x.ScheduledDate) > Today)).ExecuteDeleteAsync();
                 }
 
-                await WriteSlotsAsync(segment.Id, generated, frozen, months, state.LastSuccessAt);
+                var revisedMonths = windows.Values.Where(x => x.HolidayRevision != state.LastSuccessAt).Select(x => x.Month).ToHashSet();
+                await WriteSlotsAsync(segment, generated, frozen, prior.ToDictionary(x => x.ScheduledDate), months, revisedMonths, state.LastSuccessAt);
             }
 
             if (transaction is not null)
@@ -163,20 +166,22 @@ public sealed class TaskSchedule(AppDbContext db, TimeProvider clock, AuthWriteG
     }
 
     /// <summary>過去数十年の初回集計でも大量のEF追跡オブジェクトを作らない</summary>
-    private async Task WriteSlotsAsync(string segment, IReadOnlyList<ScheduledTask> generated,
-        IReadOnlyDictionary<DateOnly, ScheduledTask> frozen, IReadOnlyList<DateOnly> months, long? revision)
+    private async Task WriteSlotsAsync(TaskSegment segment, IReadOnlyList<ScheduledTask> generated,
+        IReadOnlyDictionary<DateOnly, ScheduledTask> frozen, IReadOnlyDictionary<DateOnly, TaskSlot> prior, IReadOnlyList<DateOnly> months,
+        IReadOnlySet<DateOnly> revisedMonths, long? revision)
     {
         var connection = db.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.Transaction = db.Database.CurrentTransaction?.GetDbTransaction();
         command.CommandText = """
-            INSERT INTO TaskSlots (Id,SegmentId,ScheduledDate,DueDate,Waiting,Frozen,Version)
-            VALUES ($id,$segment,$date,$due,$waiting,$frozen,$version)
+            INSERT INTO TaskSlots (Id,SegmentId,ScheduledDate,DueDate,Waiting,Frozen,Version,NotificationAfter)
+            VALUES ($id,$segment,$date,$due,$waiting,$frozen,$version,$after)
             ON CONFLICT(Id) DO UPDATE SET
                 DueDate=excluded.DueDate, Waiting=excluded.Waiting, Frozen=excluded.Frozen,
-                Version=CASE WHEN DueDate IS excluded.DueDate AND Waiting=excluded.Waiting THEN Version ELSE excluded.Version END
+                Version=CASE WHEN DueDate IS excluded.DueDate AND Waiting=excluded.Waiting THEN Version ELSE excluded.Version END,
+                NotificationAfter=MAX(NotificationAfter,excluded.NotificationAfter)
             """;
-        foreach (var name in new[] { "$id", "$segment", "$date", "$due", "$waiting", "$frozen", "$version" })
+        foreach (var name in new[] { "$id", "$segment", "$date", "$due", "$waiting", "$frozen", "$version", "$after" })
         {
             var parameter = command.CreateParameter();
             parameter.ParameterName = name;
@@ -188,19 +193,25 @@ public sealed class TaskSchedule(AppDbContext db, TimeProvider clock, AuthWriteG
         foreach (var item in generated)
         {
             var retained = frozen.GetValueOrDefault(item.Scheduled) ?? item;
-            command.Parameters[0].Value = Key(segment, item.Scheduled);
-            command.Parameters[1].Value = segment;
+            var arrived = Reminders.HasArrived(segment.ReminderJson, retained.Due, clock);
+            var previous = prior.GetValueOrDefault(item.Scheduled);
+            var revisedIntoPast = !frozen.ContainsKey(item.Scheduled) && arrived
+                && (previous is not null ? previous.Waiting || previous.DueDate != retained.Due
+                    : revisedMonths.Contains(new DateOnly(item.Scheduled.Year, item.Scheduled.Month, 1)));
+            command.Parameters[0].Value = Key(segment.Id, item.Scheduled);
+            command.Parameters[1].Value = segment.Id;
             command.Parameters[2].Value = Day(item.Scheduled);
             command.Parameters[3].Value = retained.Due is { } due ? Day(due) : DBNull.Value;
             command.Parameters[4].Value = retained.Waiting;
-            command.Parameters[5].Value = frozen.ContainsKey(item.Scheduled) || (!retained.Waiting && (retained.Due ?? retained.Scheduled) <= Today);
+            command.Parameters[5].Value = frozen.ContainsKey(item.Scheduled) || (!retained.Waiting && ((retained.Due ?? retained.Scheduled) <= Today || arrived));
             command.Parameters[6].Value = Guid.NewGuid().ToString("N");
+            command.Parameters[7].Value = revisedIntoPast ? clock.GetUtcNow().ToUnixTimeMilliseconds() : previous?.NotificationAfter ?? 0;
             await command.ExecuteNonQueryAsync();
         }
 
         foreach (var month in months)
         {
-            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO TaskWindows (SegmentId,Month,HolidayRevision) VALUES ({segment},{Day(month)},{revision}) ON CONFLICT(SegmentId,Month) DO UPDATE SET HolidayRevision=excluded.HolidayRevision");
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO TaskWindows (SegmentId,Month,HolidayRevision) VALUES ({segment.Id},{Day(month)},{revision}) ON CONFLICT(SegmentId,Month) DO UPDATE SET HolidayRevision=excluded.HolidayRevision");
         }
     }
 
