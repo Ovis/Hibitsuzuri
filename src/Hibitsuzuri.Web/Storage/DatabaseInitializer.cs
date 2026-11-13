@@ -1,3 +1,4 @@
+using Hibitsuzuri.Web.Calendar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hibitsuzuri.Web.Storage;
@@ -9,6 +10,7 @@ public static class DatabaseInitializer
     public static async Task InitializeAsync(AppDbContext database, CancellationToken cancellationToken)
     {
         await database.Database.MigrateAsync(cancellationToken);
+        await HolidayUpdates.SeedAsync(database, cancellationToken);
         await database.Database.OpenConnectionAsync(cancellationToken);
 
         try

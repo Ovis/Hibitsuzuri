@@ -48,7 +48,7 @@ public sealed class StorageTests
         {
             Assert.That(recovered, Is.EqualTo("persisted-value"));
             Assert.That(value, Is.EqualTo("kept"));
-            Assert.That(migrations.Count(), Is.EqualTo(4));
+            Assert.That(migrations, Is.EquivalentTo(secondDatabase.Database.GetMigrations()));
             Assert.That(pending, Is.Empty);
         });
     }

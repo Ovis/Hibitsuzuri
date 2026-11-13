@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,12 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>公式の祝日・休日</summary>
+    public DbSet<Holiday> Holidays => Set<Holiday>();
+
+    /// <summary>祝日の収録期間と更新状況</summary>
+    public DbSet<HolidayState> HolidayStates => Set<HolidayState>();
+
     /// <summary>所有者別の日記帳とテンプレート</summary>
     public DbSet<Notebook> Notebooks => Set<Notebook>();
 
@@ -39,6 +46,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Holiday>().HasKey(x => x.Date);
 
         builder.Entity<Notebook>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique();

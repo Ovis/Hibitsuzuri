@@ -37,6 +37,12 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     /// <summary>有効期限の境界試験に使う時計</summary>
     public TestClock Clock { get; } = new();
 
+    /// <summary>外部通信等を試験用実装へ置き換える。ホスト起動前だけ設定する</summary>
+    public Action<IServiceCollection>? ServicesOverride
+    {
+        get; init;
+    }
+
     /// <summary>新規または再起動試験用の永続領域を選ぶ</summary>
     public TestApplication(string? dataPath = null)
     {
@@ -65,6 +71,7 @@ public sealed class TestApplication : WebApplicationFactory<Program>
             services.AddControllers().AddApplicationPart(typeof(ProbeController).Assembly);
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+            ServicesOverride?.Invoke(services);
         });
     }
 

@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
@@ -32,6 +33,12 @@ public partial class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<DiaryMarkdown>();
         builder.AddAccountAuthentication(site);
+
+        builder.Services.AddHttpClient<HolidaySource>(client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        builder.Services.AddSingleton<HolidayUpdateGate>();
+        builder.Services.AddScoped<HolidayUpdates>();
+        builder.Services.AddHostedService<HolidayMaintenance>();
 
         builder.Services.AddDataProtection().SetApplicationName("Hibitsuzuri");
         builder.Services.AddOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>()

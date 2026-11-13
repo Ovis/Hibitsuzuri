@@ -239,6 +239,50 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("SecurityAuditLogs");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Holiday", b =>
+                {
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Date");
+
+                    b.ToTable("Holidays");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.HolidayState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FirstYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastAttemptAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastSuccessAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LastYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("HolidayStates");
+                });
+
             modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryEntry", b =>
                 {
                     b.Property<string>("Id")
