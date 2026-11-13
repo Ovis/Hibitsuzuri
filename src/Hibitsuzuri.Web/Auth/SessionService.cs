@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -25,6 +26,7 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
         // 同じブラウザの古いログインを残さず、端末単位の失効を一意に扱う。
         await db.AuthSessions.Where(x => x.BrowserId == browserId && x.RevokedAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.RevokedAt, now.ToUnixTimeMilliseconds()));
+        await PushSubscriptions.DisableAsync(db.PushDevices.Where(x => x.BrowserId == browserId && x.UserId != user.Id));
 
         var session = new AuthSession
         {
@@ -80,9 +82,12 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
     }
 
     /// <summary>全端末または指定セッション以外を強制失効する</summary>
-    public Task RevokeAsync(string userId, string? exceptSession = null)
+    public async Task RevokeAsync(string userId, string? exceptSession = null)
     {
-        return db.AuthSessions.Where(x => x.UserId == userId && x.Id != exceptSession && x.RevokedAt == null)
+        var browser = exceptSession is null ? null : await db.AuthSessions.Where(x => x.Id == exceptSession && x.UserId == userId)
+            .Select(x => x.BrowserId).SingleOrDefaultAsync();
+        await PushSubscriptions.DisableAsync(db.PushDevices.Where(x => x.UserId == userId && (browser == null || x.BrowserId != browser)));
+        await db.AuthSessions.Where(x => x.UserId == userId && x.Id != exceptSession && x.RevokedAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.RevokedAt, clock.GetUtcNow().ToUnixTimeMilliseconds()));
     }
 
@@ -90,6 +95,7 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
     public async Task SignOutAsync(HttpContext context)
     {
         var browserId = context.Request.Cookies[CookieName("Browser")];
+        await PushSubscriptions.DisableAsync(db.PushDevices.Where(x => x.BrowserId == browserId));
         await db.AuthSessions.Where(x => x.BrowserId == browserId && x.RevokedAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.RevokedAt, clock.GetUtcNow().ToUnixTimeMilliseconds()));
 

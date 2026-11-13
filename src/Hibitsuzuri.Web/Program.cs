@@ -4,6 +4,7 @@ using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Images;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.AspNetCore.DataProtection;
@@ -45,6 +46,15 @@ public partial class Program
         builder.Services.AddScoped<CalendarReader>();
         builder.Services.AddScoped<TaskSchedule>();
         builder.Services.AddScoped<TaskReader>();
+
+        builder.Services.AddSingleton<PushKeys>();
+        // 送信先URLには購読秘密が含まれるため、HTTPの自動リクエストログを使わない。
+        builder.Services.AddSingleton<IPushTransport>(services => new PushTransport(services.GetRequiredService<PushKeys>(), site,
+            new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(5) }));
+        builder.Services.AddScoped<PushSubscriptions>();
+        builder.Services.AddScoped<PushDispatcher>();
+        builder.Services.AddHostedService<PushMaintenance>();
+
         builder.Services.AddScoped<ImageStore>();
         builder.Services.AddSingleton<ImageWorker>();
         builder.Services.AddHostedService<ImageMaintenance>();
@@ -119,7 +129,8 @@ public partial class Program
         app.Use(RequestSecurity.RequireHttpsAsync);
         app.UseStaticFiles(new StaticFileOptions
         {
-            OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "public, max-age=3600"
+            OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = context.Context.Request.Path == "/sw.js"
+                ? "no-cache" : "public, max-age=3600"
         });
 
         app.UseRouting();
