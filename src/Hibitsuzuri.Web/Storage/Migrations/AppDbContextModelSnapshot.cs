@@ -443,6 +443,9 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.Property<int>("Position")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateOnly?>("TasksPausedOn")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Template")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -540,6 +543,221 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasIndex("ExpiresAt");
 
                     b.ToTable("ImageDraftLeases");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskMutation", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "Id");
+
+                    b.ToTable("TaskMutations");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskPause", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Until")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotebookId");
+
+                    b.ToTable("TaskPauses");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CompletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Edited")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Memo")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ScheduledDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SegmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeriesId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Skipped")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotebookId", "DueDate");
+
+                    b.HasIndex("SeriesId", "ScheduledDate");
+
+                    b.HasIndex("NotebookId", "CompletedAt", "Id");
+
+                    b.ToTable("TaskRecords");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSegment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("Cutoff")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Memo")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RuleJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeriesId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId");
+
+                    b.ToTable("TaskSegments");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSeries", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotebookId");
+
+                    b.ToTable("TaskSeries");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSlot", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Frozen")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("ScheduledDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SegmentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Waiting")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SegmentId", "DueDate");
+
+                    b.HasIndex("SegmentId", "ScheduledDate")
+                        .IsUnique();
+
+                    b.ToTable("TaskSlots");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskWindow", b =>
+                {
+                    b.Property<string>("SegmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Month")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("HolidayRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("SegmentId", "Month");
+
+                    b.ToTable("TaskWindows");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -813,6 +1031,74 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasOne("Hibitsuzuri.Web.Images.DiaryImage", null)
                         .WithMany()
                         .HasForeignKey("ImageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskMutation", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskPause", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskRecord", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hibitsuzuri.Web.Tasks.TaskSeries", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSegment", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Tasks.TaskSeries", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSeries", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskSlot", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Tasks.TaskSegment", null)
+                        .WithMany()
+                        .HasForeignKey("SegmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Tasks.TaskWindow", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Tasks.TaskSegment", null)
+                        .WithMany()
+                        .HasForeignKey("SegmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -3,6 +3,12 @@ namespace Hibitsuzuri.Web.Diary;
 /// <summary>所有者ごとに日記と新規作成時のひな形をまとめる</summary>
 public sealed class Notebook
 {
+    /// <summary>停止開始日。停止中はタスクを閲覧のみにする</summary>
+    public DateOnly? TasksPausedOn
+    {
+        get; set;
+    }
+
     /// <summary>日記帳の不変の識別子</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 

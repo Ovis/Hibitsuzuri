@@ -2,6 +2,7 @@ using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
+using Hibitsuzuri.Web.Tasks;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,27 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>通常タスクと繰り返し各回の操作記録</summary>
+    public DbSet<TaskRecord> TaskRecords => Set<TaskRecord>();
+
+    /// <summary>区間をまたぐ繰り返しのまとまり</summary>
+    public DbSet<TaskSeries> TaskSeries => Set<TaskSeries>();
+
+    /// <summary>不変の繰り返しルール区間</summary>
+    public DbSet<TaskSegment> TaskSegments => Set<TaskSegment>();
+
+    /// <summary>必要な範囲に限定した予定の検索索引</summary>
+    public DbSet<TaskSlot> TaskSlots => Set<TaskSlot>();
+
+    /// <summary>計算済みの月と祝日の版</summary>
+    public DbSet<TaskWindow> TaskWindows => Set<TaskWindow>();
+
+    /// <summary>再送に返す確定済み操作結果</summary>
+    public DbSet<TaskMutation> TaskMutations => Set<TaskMutation>();
+
+    /// <summary>未操作予定の自動スキップに用いる停止期間</summary>
+    public DbSet<TaskPause> TaskPauses => Set<TaskPause>();
+
     /// <summary>所有者だけが参照できる添付画像</summary>
     public DbSet<DiaryImage> DiaryImages => Set<DiaryImage>();
 
@@ -59,6 +81,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<TaskRecord>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<TaskRecord>().HasOne<TaskSeries>().WithMany().HasForeignKey(x => x.SeriesId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<TaskRecord>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<TaskRecord>().HasIndex(x => new { x.NotebookId, x.CompletedAt, x.Id });
+        builder.Entity<TaskRecord>().HasIndex(x => new { x.SeriesId, x.ScheduledDate });
+        builder.Entity<TaskRecord>().HasIndex(x => new { x.NotebookId, x.DueDate });
+
+        builder.Entity<TaskSeries>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<TaskSeries>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<TaskSegment>().HasOne<TaskSeries>().WithMany().HasForeignKey(x => x.SeriesId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TaskSlot>().HasOne<TaskSegment>().WithMany().HasForeignKey(x => x.SegmentId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<TaskSlot>().HasIndex(x => new { x.SegmentId, x.DueDate });
+        builder.Entity<TaskSlot>().HasIndex(x => new { x.SegmentId, x.ScheduledDate }).IsUnique();
+        builder.Entity<TaskWindow>().HasKey(x => new { x.SegmentId, x.Month });
+        builder.Entity<TaskWindow>().HasOne<TaskSegment>().WithMany().HasForeignKey(x => x.SegmentId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TaskMutation>().HasKey(x => new { x.UserId, x.Id });
+        builder.Entity<TaskMutation>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TaskPause>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Holiday>().HasKey(x => x.Date);
 

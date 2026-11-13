@@ -5,6 +5,7 @@ using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Images;
 using Hibitsuzuri.Web.Storage;
+using Hibitsuzuri.Web.Tasks;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -42,6 +43,8 @@ public partial class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<DiaryMarkdown>();
         builder.Services.AddScoped<CalendarReader>();
+        builder.Services.AddScoped<TaskSchedule>();
+        builder.Services.AddScoped<TaskReader>();
         builder.Services.AddScoped<ImageStore>();
         builder.Services.AddSingleton<ImageWorker>();
         builder.Services.AddHostedService<ImageMaintenance>();

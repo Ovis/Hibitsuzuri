@@ -15,7 +15,7 @@ public sealed class HolidayUpdateGate
 
 /// <summary>同梱初期値と、検証済みデータの原子的な入れ替え</summary>
 public sealed class HolidayUpdates(AppDbContext db, HolidaySource source, HolidayUpdateGate updates,
-    AuthWriteGate writes, SessionService sessions, TimeProvider clock, ILogger<HolidayUpdates> logger)
+    AuthWriteGate writes, SessionService sessions, TimeProvider clock, ILogger<HolidayUpdates> logger, Hibitsuzuri.Web.Tasks.TaskSchedule tasks)
 {
     /// <summary>初回だけ同梱データを入れる。既存データと外部更新結果は上書きしない</summary>
     public static async Task SeedAsync(AppDbContext db, CancellationToken cancellationToken)
@@ -91,6 +91,7 @@ public sealed class HolidayUpdates(AppDbContext db, HolidaySource source, Holida
                 state.Error = error;
                 if (error is null && holidays is not null && url is not null)
                 {
+                    await tasks.FreezePastAsync(cancellationToken);
                     await db.Holidays.ExecuteDeleteAsync(cancellationToken);
                     db.Holidays.AddRange(holidays);
                     state.FirstYear = holidays.Min(x => x.Date.Year);
