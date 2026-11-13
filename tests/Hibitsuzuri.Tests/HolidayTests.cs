@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Storage;
+using Hibitsuzuri.Web.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +12,66 @@ namespace Hibitsuzuri.Tests;
 /// <summary>公式取得先の解決、初期値、訂正、取得失敗、管理者認可を確認する</summary>
 public sealed class HolidayTests
 {
+    /// <summary>祝日訂正は未来の未操作だけへ反映し、未表示だった過去や操作済みの回を動かさない</summary>
+    [Test]
+    public async Task CorrectionsRecalculateOnlyUnoperatedFutureTasks()
+    {
+        var csv = "";
+        await using var app = new TestApplication
+        {
+            ServicesOverride = services => services.AddHttpClient<HolidaySource>()
+                .ConfigurePrimaryHttpMessageHandler(() => new HolidayHandler(request => request.RequestUri?.AbsoluteUri == HolidaySource.MetadataUrl
+                    ? Metadata("https://www8.cao.go.jp/new.csv") : Csv(csv)))
+        };
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
+        var creation = new TaskChange
+        {
+            NotebookId = book,
+            Title = "訂正を検証",
+            StartDate = today.AddDays(-2),
+            Rule = new RepeatRule { Adjustment = "next", AvoidHolidays = true, Count = 10 },
+            OperationId = Guid.NewGuid().ToString()
+        };
+        var saved = await TaskTests.SaveAsync(client, creation);
+        var series = saved.GetProperty("seriesId").GetString();
+        var list = await TaskTests.ReadAsync(client, $"/api/tasks?seriesId={series}");
+        var rows = list.GetProperty("items").Deserialize<TaskRow[]>(new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        var edited = rows.Single(x => x.ScheduledDate == today.AddDays(2));
+        var completed = rows.Single(x => x.ScheduledDate == today.AddDays(3));
+        await TaskTests.SaveAsync(client, new TaskChange { Id = edited.Id, Version = edited.Version, Title = "個別に固定", DueDate = today.AddDays(2), OperationId = Guid.NewGuid().ToString() });
+        await TaskTests.SaveAsync(client, new TaskChange { Id = completed.Id, Version = completed.Version, Action = "complete", Completed = true, OperationId = Guid.NewGuid().ToString() });
+        creation.OperationId = Guid.NewGuid().ToString();
+        creation.Title = "一度も表示していない系列";
+        var unseen = await TaskTests.SaveAsync(client, creation);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var holidays = await db.Holidays.AsNoTracking().ToDictionaryAsync(x => x.Date, x => x.Name);
+        foreach (var offset in new[] { -1, 1, 2, 3 })
+        {
+            holidays[today.AddDays(offset)] = "訂正した休日";
+        }
+
+        csv = "国民の祝日・休日月日,国民の祝日・休日名称\n" + string.Join("\n", holidays.OrderBy(x => x.Key).Select(x => $"{x.Key:yyyy/M/d},{x.Value}"));
+        using var updated = await AuthClient.PostAsync(client, "/admin/holidays/update");
+        Assert.That(updated.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        Assert.That((await db.HolidayStates.AsNoTracking().SingleAsync()).Error, Is.Null);
+
+        list = await TaskTests.ReadAsync(client, $"/api/tasks?seriesId={series}");
+        rows = list.GetProperty("items").Deserialize<TaskRow[]>(new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        Assert.That(rows.Single(x => x.ScheduledDate == today.AddDays(-1)).DueDate, Is.EqualTo(today.AddDays(-1)));
+        Assert.That(rows.Single(x => x.ScheduledDate == today.AddDays(1)).DueDate, Is.EqualTo(today.AddDays(4)));
+        Assert.That(rows.Single(x => x.Id == edited.Id).DueDate, Is.EqualTo(today.AddDays(2)));
+        var history = await TaskTests.ReadAsync(client, $"/api/tasks?mode=completed&seriesId={series}");
+        Assert.That(history.GetProperty("items")[0].GetProperty("dueDate").GetString(), Is.EqualTo(today.AddDays(3).ToString("yyyy-MM-dd")));
+        var cold = await TaskTests.ReadAsync(client, "/api/tasks?seriesId=" + unseen.GetProperty("seriesId").GetString());
+        var coldRows = cold.GetProperty("items").Deserialize<TaskRow[]>(new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        Assert.That(coldRows.Single(x => x.ScheduledDate == today.AddDays(-1)).DueDate, Is.EqualTo(today.AddDays(-1)));
+    }
+
     /// <summary>同梱値で初回利用でき、既存の訂正を再初期化で戻さない</summary>
     [Test]
     public async Task SeedWorksOfflineAndDoesNotOverwriteExistingData()

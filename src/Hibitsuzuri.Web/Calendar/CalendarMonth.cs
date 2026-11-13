@@ -46,12 +46,15 @@ public sealed class CalendarMonth
     /// <summary>ゴミ箱を除く日記のある日</summary>
     public IReadOnlySet<DateOnly> Entries { get; init; } = new HashSet<DateOnly>();
 
+    /// <summary>期限のある未完了タスクの日。件数や件名は月表示へ載せない</summary>
+    public IReadOnlySet<DateOnly> PendingTasks { get; init; } = new HashSet<DateOnly>();
+
     /// <summary>表示先と閏日の規則を適用した記念日</summary>
     public ILookup<DateOnly, string> Anniversaries { get; init; } = Array.Empty<(DateOnly Date, string Title)>().ToLookup(x => x.Date, x => x.Title);
 }
 
 /// <summary>本人の月単位の記録だけを集め、両方のカレンダーで共有する</summary>
-public sealed class CalendarReader(AppDbContext database, TimeProvider clock)
+public sealed class CalendarReader(AppDbContext database, TimeProvider clock, Hibitsuzuri.Web.Tasks.TaskReader tasks)
 {
     /// <summary>日記帳の所有者を確認して表示材料を返す</summary>
     public async Task<CalendarMonth?> ReadAsync(string owner, string? bookId, DateOnly selected)
@@ -65,6 +68,10 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock)
 
         var first = new DateOnly(selected.Year, selected.Month, 1);
         var last = new DateOnly(selected.Year, selected.Month, DateTime.DaysInMonth(selected.Year, selected.Month));
+        await tasks.PrepareAsync(owner, book.Id, first, last);
+        var pendingTasks = await tasks.Rows(owner).Where(x => x.NotebookId == book.Id && x.CompletedAt == null && x.DueDate >= first && x.DueDate <= last)
+            .Select(x => x.DueDate.GetValueOrDefault()).Distinct().ToListAsync();
+
         var state = await database.HolidayStates.SingleAsync();
         var holidays = await database.Holidays.Where(x => x.Date >= first && x.Date <= last).ToDictionaryAsync(x => x.Date, x => x.Name);
         var entries = await database.DiaryEntries.Where(x => x.NotebookId == book.Id && x.DeletedAt == null && x.EntryDate >= first && x.EntryDate <= last)
@@ -82,6 +89,7 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock)
             HolidaysKnown = selected.Year >= state.FirstYear && selected.Year <= state.LastYear,
             Holidays = holidays,
             Entries = entries.ToHashSet(),
+            PendingTasks = pendingTasks.ToHashSet(),
             Anniversaries = anniversaries.Select(x => (Date: x.InYear(selected.Year), x.Title))
                 .Where(x => x.Date >= first && x.Date <= last).ToLookup(x => x.Date.GetValueOrDefault(), x => x.Title)
         };
