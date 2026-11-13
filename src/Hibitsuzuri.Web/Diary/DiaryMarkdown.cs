@@ -15,6 +15,9 @@ public sealed class DiaryMarkdown
     /// <summary>フォーム送信時のCRLF化によって、編集欄と保存側の文字数がずれないようLFに揃える</summary>
     public static string NormalizeLineEndings(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
+    /// <summary>Markdownの記号やリンク先を除いた表示本文を検索対象にする</summary>
+    public string PlainText(string text) => Markdown.ToPlainText(text, _pipeline);
+
     /// <summary>生HTMLと任意属性の拡張を受け入れず、必要な構文だけ描画する</summary>
     public string Render(string text)
     {

@@ -37,6 +37,8 @@
                 {
                     <a href="/" aria-current="@(currentPage == "home" ? "page" : null)">ホーム</a>
                     <a href="/books" aria-current="@(currentPage == "books" ? "page" : null)">日記帳</a>
+                    <a href="/calendar" aria-current="@(currentPage == "calendar" ? "page" : null)">カレンダー</a>
+                    <a href="/search" aria-current="@(currentPage == "search" ? "page" : null)">検索</a>
                     <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
                     <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
                     <form method="post" action="/auth/logout">

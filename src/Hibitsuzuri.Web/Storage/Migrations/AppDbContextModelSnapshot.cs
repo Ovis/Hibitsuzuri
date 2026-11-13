@@ -239,6 +239,59 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("SecurityAuditLogs");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Anniversary", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AllNotebooks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LeapDayPolicy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Anniversaries");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.AnniversaryNotebook", b =>
+                {
+                    b.Property<string>("AnniversaryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("AnniversaryId", "NotebookId");
+
+                    b.HasIndex("NotebookId");
+
+                    b.ToTable("AnniversaryNotebook");
+                });
+
             modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Holiday", b =>
                 {
                     b.Property<DateOnly>("Date")
@@ -303,6 +356,13 @@ namespace Hibitsuzuri.Web.Storage.Migrations
 
                     b.Property<string>("NotebookId")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PlainText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchText")
                         .HasColumnType("TEXT");
 
                     b.Property<long>("UpdatedAt")
@@ -577,6 +637,30 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Anniversary", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.AnniversaryNotebook", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Calendar.Anniversary", null)
+                        .WithMany("Notebooks")
+                        .HasForeignKey("AnniversaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryEntry", b =>
                 {
                     b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
@@ -713,6 +797,11 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Anniversary", b =>
+                {
+                    b.Navigation("Notebooks");
                 });
 #pragma warning restore 612, 618
         }

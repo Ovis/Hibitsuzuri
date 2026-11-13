@@ -1,0 +1,19 @@
+@model Hibitsuzuri.Web.Diary.DiaryYears
+@inject Hibitsuzuri.Web.Diary.DiaryMarkdown Markdown
+@{
+    ViewData["Title"] = "この日の記録";
+    ViewData["Navigation"] = "home";
+}
+<header class="page-header"><p class="eyebrow">@Model.Book.Name</p><h1>@Model.Date.ToString("M月d日") の記録</h1></header>
+<p><a href="/diary/@Model.Book.Id/@Model.Date.ToString("yyyy-MM-dd")">日記へ戻る</a></p>
+@if (Model.Entries.Count == 0)
+{
+    <p class="paper">この月日の記録はまだありません。</p>
+}
+@foreach (var entry in Model.Entries)
+{
+    <section class="paper spacer">
+        <h2><a href="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日（ddd）")</a></h2>
+        <article class="prose">@Html.Raw(Markdown.Render(entry.Content))</article>
+    </section>
+}

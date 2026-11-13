@@ -9,6 +9,9 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>本人の記念日と個別の表示先</summary>
+    public DbSet<Anniversary> Anniversaries => Set<Anniversary>();
+
     /// <summary>公式の祝日・休日</summary>
     public DbSet<Holiday> Holidays => Set<Holiday>();
 
@@ -48,6 +51,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         base.OnModelCreating(builder);
 
         builder.Entity<Holiday>().HasKey(x => x.Date);
+
+        builder.Entity<Anniversary>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<Anniversary>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<AnniversaryNotebook>().HasKey(x => new { x.AnniversaryId, x.NotebookId });
+        builder.Entity<Anniversary>().HasMany(x => x.Notebooks).WithOne().HasForeignKey(x => x.AnniversaryId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<AnniversaryNotebook>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Notebook>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique();

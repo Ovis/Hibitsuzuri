@@ -13,7 +13,7 @@ namespace Hibitsuzuri.Web.Controllers;
 [RequestSizeLimit(1500000)]
 // URLエンコードでは1文字が最大12バイトになる。本文自体の上限は別途スカラー値で検証する。
 [RequestFormLimits(ValueLengthLimit = 1200000)]
-public sealed class DiaryController(AppDbContext database, TimeProvider clock, DiaryMarkdown markdown) : Controller
+public sealed class DiaryController(AppDbContext database, TimeProvider clock, DiaryMarkdown markdown, Hibitsuzuri.Web.Calendar.CalendarReader calendar) : Controller
 {
     /// <summary>管理者であっても越えられない所有者境界</summary>
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException();
@@ -181,6 +181,9 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             entry.Version = Guid.NewGuid().ToString("N");
         }
 
+        entry.PlainText = markdown.PlainText(content);
+        entry.SearchText = DiarySearch.Normalize(entry.PlainText);
+
         database.DiarySaveOperations.Add(new DiarySaveOperation
         {
             NotebookId = bookId,
@@ -308,6 +311,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             Today = Today,
             Entry = entry,
             Revisions = revisions,
+            Calendar = await calendar.ReadAsync(Owner, bookId, day),
             Html = entry is null ? "" : markdown.Render(entry.Content)
         };
     }

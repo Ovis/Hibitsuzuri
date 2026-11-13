@@ -11,6 +11,7 @@ public static class DatabaseInitializer
     {
         await database.Database.MigrateAsync(cancellationToken);
         await HolidayUpdates.SeedAsync(database, cancellationToken);
+        await Hibitsuzuri.Web.Diary.DiarySearch.BackfillAsync(database, cancellationToken);
         await database.Database.OpenConnectionAsync(cancellationToken);
 
         try

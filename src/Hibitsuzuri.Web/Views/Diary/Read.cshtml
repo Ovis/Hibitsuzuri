@@ -83,4 +83,12 @@ else
     </section>
 }
 
+<aside class="paper mini-calendar spacer">
+    <div class="diary-heading"><h2>@Model.Date.ToString("yyyy年M月")</h2><a href="/calendar?bookId=@Model.Book.Id&month=@Model.Date.ToString("yyyy-MM")">カレンダー</a></div>
+    @if (Model.Calendar is not null)
+    {
+        <partial name="_CalendarGrid" model="Model.Calendar" />
+    }
+    <a href="@Model.Path/years">この日の記録 — 同じ月日の日記を振り返る</a>
+</aside>
 <script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

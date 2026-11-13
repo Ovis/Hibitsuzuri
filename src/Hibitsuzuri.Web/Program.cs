@@ -32,6 +32,7 @@ public partial class Program
 
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<DiaryMarkdown>();
+        builder.Services.AddScoped<CalendarReader>();
         builder.AddAccountAuthentication(site);
 
         builder.Services.AddHttpClient<HolidaySource>(client => client.Timeout = TimeSpan.FromSeconds(30))

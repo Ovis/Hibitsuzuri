@@ -1,0 +1,41 @@
+@model Hibitsuzuri.Web.Calendar.CalendarMonth
+@if (!Model.HolidaysKnown)
+{
+    <p class="notice">@Model.First.Year 年の祝日情報は未収録です。祝日がないことを示すものではありません。</p>
+}
+<div class="calendar-grid">
+    @foreach (var label in new[] { "日", "月", "火", "水", "木", "金", "土" })
+    {
+        <span class="calendar-weekday">@label</span>
+    }
+    @for (var blank = 0; blank < (int)Model.First.DayOfWeek; blank++)
+    {
+        <span aria-hidden="true"></span>
+    }
+    @for (var number = 1; number <= DateTime.DaysInMonth(Model.First.Year, Model.First.Month); number++)
+    {
+        var date = new DateOnly(Model.First.Year, Model.First.Month, number);
+        var holiday = Model.Holidays.GetValueOrDefault(date);
+        var names = Model.Anniversaries[date].ToArray();
+        var hasEntry = Model.Entries.Contains(date);
+        var color = holiday is not null || date.DayOfWeek == DayOfWeek.Sunday ? "holiday" : date.DayOfWeek == DayOfWeek.Saturday ? "saturday" : "";
+        var label = $"{date:yyyy年M月d日（ddd）} {holiday} {(date == Model.Today ? "今日" : "")} {(hasEntry ? "日記あり" : "")} {string.Join("、", names)}";
+        <a class="calendar-day @color @(date == Model.Today ? "today" : "")" href="/diary/@Model.Book.Id/@date.ToString("yyyy-MM-dd")"
+           aria-label="@label" aria-current="@(date == Model.Selected ? "date" : null)">
+            <span>@number</span>
+            @if (holiday is not null)
+            {
+                <small class="calendar-holiday">@holiday</small>
+            }
+            @if (names.Length > 0)
+            {
+                <small class="calendar-anniversary">★ <span>@string.Join("、", names)</span></small>
+            }
+            @if (hasEntry)
+            {
+                <span class="entry-dot" aria-hidden="true">●</span>
+            }
+        </a>
+    }
+</div>
+<p class="muted calendar-legend">● 日記あり　★ 記念日　<span class="holiday">祝日・日曜</span>　<span class="saturday">土曜</span></p>

@@ -3,6 +3,12 @@ namespace Hibitsuzuri.Web.Diary;
 /// <summary>閲覧と編集に共通する、所有者確認済みの表示材料</summary>
 public sealed class DiaryPage
 {
+    /// <summary>日記を読みながら移動するための月表示</summary>
+    public Hibitsuzuri.Web.Calendar.CalendarMonth? Calendar
+    {
+        get; init;
+    }
+
     /// <summary>表示中の日記帳</summary>
     public required Notebook Book
     {
