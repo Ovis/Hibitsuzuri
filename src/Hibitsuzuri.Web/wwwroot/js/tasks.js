@@ -29,6 +29,8 @@
     let revision = 0;
     let undo = null;
     const pending = new Map();
+    const reminders = window.TaskReminders;
+    reminders.init(select("[data-task-reminders]"));
 
     function node(tag, text, className) {
         const element = document.createElement(tag);
@@ -315,6 +317,11 @@
             select("#task-detail-title").textContent = item.title;
             select("[data-detail-meta]").textContent = item.bookName + " · " + (item.dueDate || (item.waiting ? "祝日データ待ち" : "期限なし"));
             select("[data-detail-memo]").replaceChildren(memoText(item.memo || "メモはありません。"));
+            select("[data-detail-reminders]").textContent = reminders.describe(current.reminders) + "（" + current.timeZone + "）";
+            if (current.notificationReview) {
+                select("[data-detail-reminders]").textContent += " · 到来済みの通知は送信しません。通知が必要なら未来の時刻に変更してください。";
+            }
+
             select("[data-detail-repeat]").textContent = item.seriesId
                 ? "繰り返し · 元の予定日 " + item.scheduledDate + (item.completedAt ? " · 完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "")
                 : item.completedAt ? "完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "";
@@ -351,6 +358,7 @@
         setValue("month", Number((day || today).slice(5, 7)));
         setValue("scope", existing?.item.waiting ? "following" : "once");
         field("repeating").checked = Boolean(existing?.rule);
+        reminders.set(existing?.reminders || []);
 
         const rule = existing?.rule;
         if (rule) {
@@ -385,6 +393,7 @@
     function updateEditor() {
         const once = Boolean(current?.item.seriesId) && field("scope").value === "once";
         const repeat = field("repeating").checked && !once;
+        reminders.update(repeat);
         visible("[data-repeat-toggle]", !once);
         visible("[data-repeat-fields]", repeat);
         visible("[data-due-field]", !repeat);
@@ -452,7 +461,8 @@
             dueDate: repeating ? null : field("dueDate").value || null,
             scope: field("scope").value,
             startDate: repeating ? field("startDate").value : null,
-            rule: null
+            rule: null,
+            reminders: reminders.read()
         };
         if (repeating) {
             let weekdays = 0;
@@ -621,6 +631,9 @@
             closeEditor();
         }
     });
+    field("scope").addEventListener("change", () => {
+        reminders.set(field("scope").value === "following" ? current?.commonReminders : current?.reminders);
+    });
     form.addEventListener("change", updateEditor);
     form.addEventListener("submit", save);
     window.addEventListener("beforeunload", event => {
@@ -676,4 +689,8 @@
     }
 
     load();
+    const linkedTask = new URL(location.href).searchParams.get("taskId");
+    if (linkedTask) {
+        showDetail(linkedTask);
+    }
 })();

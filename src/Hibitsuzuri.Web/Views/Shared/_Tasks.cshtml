@@ -65,6 +65,7 @@
             <p data-detail-meta class="muted"></p>
             <div data-detail-memo class="task-memo"></div>
             <p data-detail-repeat></p>
+            <p data-detail-reminders></p>
         </div>
         <footer><button type="button" data-delete-task>削除</button><button type="button" class="button primary" data-edit-task>編集</button></footer>
     </dialog>
@@ -142,9 +143,17 @@
                         <p class="muted">祝日が未収録の場合は、データが揃うまで予定を保留します。終了日と回数は調整前の予定を基準にし、自動スキップは回数に含めません。</p>
                     </details>
                 </fieldset>
+                <fieldset data-task-reminders>
+                    <legend>リマインダー（最大3件）</legend>
+                    <p class="muted">休日調整後の期限を基準にします。時刻はサーバーのタイムゾーンです。過去の時刻への新規設定はできません。</p>
+                    <div data-reminder-list></div>
+                    <button type="button" data-reminder-add>通知を追加</button>
+                    <p class="muted">通知の受信は<a href="/settings/notifications" target="_blank" rel="noopener">ブラウザごとの通知設定</a>で有効にしてください。再開時に過去分を送り直すことはありません。</p>
+                </fieldset>
             </div>
             <footer><button type="button" data-cancel-editor>キャンセル</button><button type="submit" class="button primary">保存する</button></footer>
         </form>
     </dialog>
 </section>
+<script src="~/js/task-reminders.js" asp-append-version="true" defer></script>
 <script src="~/js/tasks.js" asp-append-version="true" defer></script>

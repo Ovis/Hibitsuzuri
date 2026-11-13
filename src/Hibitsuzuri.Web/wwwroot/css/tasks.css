@@ -190,6 +190,21 @@
     color: var(--accent);
 }
 
+.task-reminder {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: .6rem;
+    padding: .8rem 0;
+    border-bottom: 1px solid var(--control-border);
+    align-items: end;
+}
+
+.task-reminder input,
+.task-reminder select {
+    min-width: 0;
+    width: 100%;
+}
+
 @media (min-width: 701px) {
     .task-filters > summary {
         display: none;

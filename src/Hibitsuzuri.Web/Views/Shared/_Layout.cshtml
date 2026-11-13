@@ -8,10 +8,13 @@
 }
 
 <!DOCTYPE html>
-<html lang="ja" data-theme="light" data-color="neutral" data-appearance-key="@preferenceKey">
+<html lang="ja" data-theme="light" data-color="neutral" data-appearance-key="@preferenceKey" data-owner="@preferenceOwner">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f3f0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script src="~/js/pwa.js" asp-append-version="true" defer></script>
     <title>@ViewData["Title"] - Hibitsuzuri</title>
     <link rel="icon" href="~/images/book.svg" type="image/svg+xml" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -41,6 +44,7 @@
                     <a href="/tasks" aria-current="@(currentPage == "tasks" ? "page" : null)">タスク</a>
                     <a href="/search" aria-current="@(currentPage == "search" ? "page" : null)">検索</a>
                     <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
+                    <a href="/settings/notifications" aria-current="@(currentPage == "notifications" ? "page" : null)">通知・アプリ</a>
                     <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
                     <form method="post" action="/auth/logout">
                         @Html.AntiForgeryToken()
