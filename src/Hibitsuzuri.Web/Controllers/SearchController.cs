@@ -19,6 +19,11 @@ public sealed class SearchController(AppDbContext database) : Controller
     public async Task<IActionResult> Index(string? keyword, string? bookId, string? start, string? end, int page = 1)
     {
         var books = await database.Notebooks.Where(x => x.UserId == Owner).OrderBy(x => x.Position).ThenBy(x => x.Id).ToListAsync();
+        if (!Request.Query.ContainsKey("bookId"))
+        {
+            bookId = books.FirstOrDefault(x => x.Id == Request.Cookies[$"Hibitsuzuri.Book.{Owner}"])?.Id ?? books.FirstOrDefault()?.Id;
+        }
+
         if (!string.IsNullOrEmpty(bookId) && books.All(x => x.Id != bookId))
         {
             return NotFound();

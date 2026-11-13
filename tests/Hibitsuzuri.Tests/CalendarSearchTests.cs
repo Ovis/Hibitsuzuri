@@ -10,6 +10,27 @@ namespace Hibitsuzuri.Tests;
 /// <summary>検索・暦・記念日の表示と所有者境界を検証する</summary>
 public sealed class CalendarSearchTests
 {
+    /// <summary>検索導入前の日記を初回起動で索引化し、原文と履歴を変更しない</summary>
+    [Test]
+    public async Task StartupBackfillsExistingDiaryText()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var version = await DiaryClient.SaveVersionAsync(client, book, "## 昔のＡＢＣ\n[本文](https://hidden.example)");
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.DiaryEntries.ExecuteUpdateAsync(update => update.SetProperty(x => x.SearchText, (string?)null).SetProperty(x => x.PlainText, ""));
+
+        await DiarySearch.BackfillAsync(db, CancellationToken.None);
+        var entry = await db.DiaryEntries.SingleAsync();
+        Assert.That(entry.SearchText, Does.Contain("昔のabc").And.Not.Contain("hidden.example"));
+        Assert.That(entry.Content, Does.Contain("https://hidden.example"));
+        Assert.That(entry.Version, Is.EqualTo(version));
+        Assert.That(await db.DiaryRevisions.CountAsync(), Is.Zero);
+    }
+
     /// <summary>リンク先・記号を除き、英数字だけを正規化して安全に強調する</summary>
     [Test]
     public void SearchUsesVisibleTextAndPreservesKanaDistinctions()
@@ -57,7 +78,7 @@ public sealed class CalendarSearchTests
             ["action"] = "delete"
         });
 
-        var search = WebUtility.HtmlDecode(await owner.GetStringAsync("/search?keyword=花&start=2020-05-10&end=2020-05-12"));
+        var search = WebUtility.HtmlDecode(await owner.GetStringAsync("/search?keyword=花&bookId=&start=2020-05-10&end=2020-05-12"));
         var width = WebUtility.HtmlDecode(await owner.GetStringAsync("/search?keyword=abc12"));
         var years = WebUtility.HtmlDecode(await owner.GetStringAsync($"/diary/{book}/2020-05-10/years"));
         Assert.That(search, Does.Contain("現在").And.Contain("別冊").And.Not.Contain("秘密").And.Not.Contain("花 削除").And.Not.Contain("ＡＢＣ１２"));
