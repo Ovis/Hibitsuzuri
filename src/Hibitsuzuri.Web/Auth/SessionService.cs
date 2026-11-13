@@ -25,6 +25,7 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
         // 同じブラウザの古いログインを残さず、端末単位の失効を一意に扱う。
         await db.AuthSessions.Where(x => x.BrowserId == browserId && x.RevokedAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.RevokedAt, now.ToUnixTimeMilliseconds()));
+
         var session = new AuthSession
         {
             UserId = user.Id,
@@ -91,6 +92,7 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
         var browserId = context.Request.Cookies[CookieName("Browser")];
         await db.AuthSessions.Where(x => x.BrowserId == browserId && x.RevokedAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.RevokedAt, clock.GetUtcNow().ToUnixTimeMilliseconds()));
+
         await signIn.SignOutAsync();
     }
 

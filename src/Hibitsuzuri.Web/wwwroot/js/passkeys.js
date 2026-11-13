@@ -35,7 +35,9 @@ for (const form of document.querySelectorAll('.passkey-form')) {
 
             fields.set('ChallengeId', options.challengeId);
             fields.set('Credential', JSON.stringify(credential.toJSON()));
+
             const result = await send(`/api/passkeys/${purpose}/verify`, fields);
+
             const returnUrl = form.dataset.returnUrl;
             // サーバーが検証した戻り先のみを使用し、外部URLへの移動は許可しない。
             window.location.assign(returnUrl?.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : result.redirect);

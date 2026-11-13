@@ -18,6 +18,7 @@ public sealed class AuthAudit(AppDbContext db, TimeProvider clock)
     public void Add(HttpContext context, string eventName, string? subjectId, bool succeeded = true)
     {
         var agent = context.Request.Headers.UserAgent.ToString();
+
         db.SecurityAuditLogs.Add(new SecurityAuditLog
         {
             OccurredAt = clock.GetUtcNow().ToUnixTimeMilliseconds(),
@@ -48,6 +49,7 @@ public sealed class AuthMaintenance(IServiceScopeFactory scopes, AuthWriteGate g
                     await using var scope = scopes.CreateAsyncScope();
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var now = clock.GetUtcNow();
+
                     await scope.ServiceProvider.GetRequiredService<AuthAudit>().PruneAsync(stoppingToken);
                     await db.AccountFlows.Where(x => x.ExpiresAt <= now.ToUnixTimeMilliseconds()).ExecuteDeleteAsync(stoppingToken);
                 }

@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "本人確認";
 }
+
 <div class="page-heading"><h1>本人確認</h1></div>
 <section class="paper settings-panel">
     <p>重要な操作のため、もう一度本人確認してください。有効期間は10分間です。</p>
@@ -13,6 +14,7 @@
         <button type="submit" class="button primary">本人確認する</button>
     </form>
 </section>
+
 <section class="paper settings-panel">
     <form class="account-form passkey-form" data-purpose="reauthenticate" data-return-url="@(Url.IsLocalUrl(Model.ReturnUrl) ? Model.ReturnUrl : "/account")">
         @Html.AntiForgeryToken()
@@ -20,4 +22,5 @@
         <p role="status" class="passkey-status"></p>
     </form>
 </section>
+
 <script src="~/js/passkeys.js" asp-append-version="true" defer></script>

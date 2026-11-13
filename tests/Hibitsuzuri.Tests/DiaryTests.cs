@@ -17,8 +17,10 @@ public sealed class DiaryTests
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
+
         using var read = await client.GetAsync($"/diary/{book}/2020-05-10");
         using var edit = await client.GetAsync($"/diary/{book}/2020-05-10/edit");
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.DiaryEntries.CountAsync(), Is.Zero);
@@ -32,6 +34,7 @@ public sealed class DiaryTests
         var unchanged = await DiaryClient.SaveVersionAsync(client, book, "本文7", version);
         var revisions = await db.DiaryRevisions.OrderBy(x => x.Sequence).ToListAsync();
         var editor = await client.GetStringAsync($"/diary/{book}/2020-05-10/edit");
+
         Assert.Multiple(() =>
         {
             Assert.That(unchanged, Is.EqualTo(version));
@@ -41,7 +44,9 @@ public sealed class DiaryTests
 
         // 履歴を表示しただけでは変わらず、読み込んだ本文の明示保存で初めて現行版になる。
         Assert.That(await db.DiaryEntries.Select(x => x.Content).SingleAsync(), Is.EqualTo("本文7"));
+
         await DiaryClient.SaveVersionAsync(client, book, revisions[0].Content, version);
+
         Assert.That(await db.DiaryEntries.Select(x => x.Content).SingleAsync(), Is.EqualTo("本文2"));
         Assert.That(await db.DiaryRevisions.CountAsync(), Is.EqualTo(5));
     }
@@ -54,11 +59,15 @@ public sealed class DiaryTests
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
+
         var responses = await Task.WhenAll(DiaryClient.SaveAsync(client, book, "タブA"), DiaryClient.SaveAsync(client, book, "タブB"));
+
         Assert.That(responses.Select(x => x.StatusCode), Is.EquivalentTo(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }));
+
         var winner = responses.Single(x => x.StatusCode == HttpStatusCode.OK);
         using var saved = JsonDocument.Parse(await winner.Content.ReadAsStringAsync());
         var version = saved.RootElement.GetProperty("version").GetString() ?? "";
+
         using var first = await DiaryClient.SaveAsync(client, book, "最新版", version);
         using var stale = await DiaryClient.SaveAsync(client, book, "古い版からの入力", version);
         using var conflict = JsonDocument.Parse(await stale.Content.ReadAsStringAsync());
@@ -69,6 +78,7 @@ public sealed class DiaryTests
             Assert.That(stale.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
             Assert.That(conflict.RootElement.GetProperty("latest").GetProperty("content").GetString(), Is.EqualTo("最新版"));
         });
+
         foreach (var response in responses)
         {
             response.Dispose();
@@ -83,23 +93,28 @@ public sealed class DiaryTests
         var operation = Guid.NewGuid().ToString();
         string book;
         string version;
+
         await using (first)
         {
             using var client = first.CreateBrowser();
             await AuthClient.RegisterAsync(client);
             book = await DiaryClient.CreateBookAsync(client);
+
             using var save = await DiaryClient.SaveAsync(client, book, "最初の保存", operation: operation);
             using var json = JsonDocument.Parse(await save.Content.ReadAsStringAsync());
             version = json.RootElement.GetProperty("version").GetString() ?? "";
+
             await DiaryClient.SaveVersionAsync(client, book, "後の保存", version);
         }
 
         await using var second = new TestApplication(first.DataPath);
         using var browser = second.CreateBrowser();
         using var login = await AuthClient.LoginAsync(browser);
+
         using var retry = await DiaryClient.SaveAsync(browser, book, "最初の保存", operation: operation);
         using var mismatch = await DiaryClient.SaveAsync(browser, book, "内容をすり替え", operation: operation);
         using var result = JsonDocument.Parse(await retry.Content.ReadAsStringAsync());
+
         await using var scope = second.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -141,6 +156,7 @@ public sealed class DiaryTests
             ["version"] = version
         });
         using var empty = await AuthClient.PostAsync(admin, $"/diary/{book}/trash/empty");
+
         Assert.Multiple(() =>
         {
             Assert.That(save.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -157,6 +173,7 @@ public sealed class DiaryTests
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
+
         foreach (var invalid in new[] { " \r\n\t", new string('あ', 100001), "本文\0" })
         {
             using var response = await DiaryClient.SaveAsync(client, book, invalid);
@@ -170,11 +187,13 @@ public sealed class DiaryTests
             ["content"] = "CSRFなし",
             ["operationId"] = Guid.NewGuid().ToString()
         }));
+
         Assert.That(futureSave.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         Assert.That(csrf.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
         var maximum = string.Concat(Enumerable.Repeat("😀", 100000));
         await DiaryClient.SaveVersionAsync(client, book, maximum);
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.DiaryEntries.Select(x => x.Content).SingleAsync(), Is.EqualTo(maximum));
@@ -188,9 +207,12 @@ public sealed class DiaryTests
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
+
         app.Clock.Advance(TimeSpan.FromHours(8));
         using var response = await DiaryClient.SaveAsync(client, book, "期限切れの入力");
+
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
         await using var scope = app.Services.CreateAsyncScope();
         Assert.That(await scope.ServiceProvider.GetRequiredService<AppDbContext>().DiaryEntries.CountAsync(), Is.Zero);
     }
@@ -204,6 +226,7 @@ public sealed class DiaryTests
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var content = new string('あ', 99999) + "\n";
+
         var version = await DiaryClient.SaveVersionAsync(client, book, content.Replace("\n", "\r\n", StringComparison.Ordinal));
         var unchanged = await DiaryClient.SaveVersionAsync(client, book, content, version);
 

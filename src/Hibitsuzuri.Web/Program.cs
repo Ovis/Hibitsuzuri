@@ -28,6 +28,7 @@ public partial class Program
         builder.Services.AddSingleton<DataDirectory>();
         builder.Services.AddDbContext<AppDbContext>((services, options) =>
             options.UseSqlite(services.GetRequiredService<DataDirectory>().ConnectionString));
+
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<DiaryMarkdown>();
         builder.AddAccountAuthentication(site);
@@ -62,6 +63,7 @@ public partial class Program
             options.ForwardLimit = 1;
             options.KnownProxies.Clear();
             options.KnownIPNetworks.Clear();
+
             foreach (var proxy in site.KnownProxies)
             {
                 options.KnownProxies.Add(proxy);
@@ -76,6 +78,7 @@ public partial class Program
 
         app.Use(RequestSecurity.AddHeadersAsync);
         app.Use(HealthEndpoints.HandleAsync);
+
         // 信頼先が空のまま転送処理を有効にすると、全接続元を信頼してしまう。
         if (site.KnownProxies.Count != 0)
         {
@@ -95,6 +98,7 @@ public partial class Program
         {
             OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "public, max-age=3600"
         });
+
         app.UseRouting();
         app.UseAuthentication();
         app.UseRateLimiter();

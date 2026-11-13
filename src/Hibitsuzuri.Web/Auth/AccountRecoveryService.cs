@@ -18,6 +18,7 @@ public sealed class AccountRecoveryService(AppDbContext db, UserManager<AppUser>
 
         var user = await users.FindByNameAsync(loginId);
         var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+
         // 不存在でも同じ固定長ハッシュを計算し、応答では失敗の理由を分けない。
         var hash = RecoveryCodes.CodeHash(user?.Id ?? "unknown", code);
         if (user is null || user.IsSuspended || user.RecoveryBlockedUntil > now)
@@ -39,14 +40,17 @@ public sealed class AccountRecoveryService(AppDbContext db, UserManager<AppUser>
 
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
+
             return false;
         }
 
         user.RecoveryFailures = 0;
         user.RecoveryBlockedUntil = 0;
         await flows.BeginAsync(context, user, "recover");
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return true;
     }
 
@@ -68,6 +72,7 @@ public sealed class AccountRecoveryService(AppDbContext db, UserManager<AppUser>
         await using var transaction = await db.Database.BeginTransactionAsync();
         var token = await users.GeneratePasswordResetTokenAsync(user);
         AuthRules.RequireSuccess(await users.ResetPasswordAsync(user, token, password));
+
         foreach (var passkey in await users.GetPasskeysAsync(user))
         {
             AuthRules.RequireSuccess(await users.RemovePasskeyAsync(user, passkey.CredentialId));
@@ -77,11 +82,14 @@ public sealed class AccountRecoveryService(AppDbContext db, UserManager<AppUser>
         user.RecoveryCodesConfirmed = false;
         user.AccessFailedCount = 0;
         user.LockoutEnd = null;
+
         var freshCodes = await codes.ReplaceAsync(user.Id);
         await flows.BeginAsync(context, user, "confirm-recovery");
         audit.Add(context, "account-recovery", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return freshCodes;
     }
 }

@@ -22,11 +22,13 @@ public sealed class TestAuthenticator : IDisposable
     {
         _userHandle = WebEncoders.Base64UrlDecode(RequiredString(options.GetProperty("user"), "id"));
         var clientData = ClientData("webauthn.create", RequiredString(options, "challenge"), origin);
+
         var parameters = _key.ExportParameters(false);
         var x = parameters.Q.X ?? throw new InvalidOperationException("公開鍵Xがありません。");
         var y = parameters.Q.Y ?? throw new InvalidOperationException("公開鍵Yがありません。");
         byte[] cose = [0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20, .. x, 0x22, 0x58, 0x20, .. y];
         byte[] authData = [.. AuthenticatorData((byte)(verified ? 0x45 : 0x41), 0), .. new byte[16], 0, 32, .. _credentialId, .. cose];
+
         using var stream = new MemoryStream();
         stream.WriteByte(0xa3);
         WriteText(stream, "fmt");
@@ -99,6 +101,7 @@ public sealed class TestAuthenticator : IDisposable
         SHA256.HashData(Encoding.UTF8.GetBytes("diary.example.test")).CopyTo(data, 0);
         data[32] = flags;
         BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(33), count);
+
         return data;
     }
 

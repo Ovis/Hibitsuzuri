@@ -39,7 +39,9 @@ public sealed class PasskeyCeremonies(TimeProvider clock)
         var token = AuthRules.Token();
         ceremony.ExpiresAt = clock.GetUtcNow().AddMinutes(5);
         _pending.Add(token, ceremony);
+
         context.Response.Cookies.Append(cookieName, token, sessions.CookieOptions(TimeSpan.FromMinutes(5)));
+
         return token;
     }
 
@@ -53,6 +55,7 @@ public sealed class PasskeyCeremonies(TimeProvider clock)
         }
 
         context.Response.Cookies.Delete(cookieName, sessions.CookieOptions(TimeSpan.Zero));
+
         return _pending.Remove(id, out var ceremony) && ceremony.Purpose == purpose && ceremony.ExpiresAt > clock.GetUtcNow()
             ? ceremony : null;
     }

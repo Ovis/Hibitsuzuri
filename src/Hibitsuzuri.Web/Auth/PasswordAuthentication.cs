@@ -21,6 +21,7 @@ public sealed class PasswordAuthentication(UserManager<AppUser> users, AppDbCont
         if (user is null)
         {
             users.PasswordHasher.VerifyHashedPassword(new AppUser(), DummyHash, password);
+
             return null;
         }
 
@@ -47,12 +48,15 @@ public sealed class PasswordAuthentication(UserManager<AppUser> users, AppDbCont
             }
 
             await db.SaveChangesAsync();
+
             return null;
         }
 
         user.AccessFailedCount = 0;
         user.LockoutEnd = null;
+
         await db.SaveChangesAsync();
+
         return user;
     }
 }

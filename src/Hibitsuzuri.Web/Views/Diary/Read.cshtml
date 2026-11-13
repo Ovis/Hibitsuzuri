@@ -3,6 +3,7 @@
     ViewData["Title"] = Model.Day;
     ViewData["Navigation"] = "home";
 }
+
 <header class="page-header diary-heading">
     <div>
         <p class="eyebrow">@Model.Book.Name</p>
@@ -10,6 +11,7 @@
     </div>
     <a href="/diary/@Model.Book.Id/trash">ゴミ箱</a>
 </header>
+
 <nav class="day-navigation" aria-label="日付の移動">
     @if (Model.Date > DateOnly.MinValue)
     {
@@ -25,6 +27,7 @@
         <a href="/diary/@Model.Book.Id/@Model.Date.AddDays(1).ToString("yyyy-MM-dd")">翌日 →</a>
     }
 </nav>
+
 <details class="book-picker">
     <summary>日記帳を切り替える</summary>
     <nav aria-label="日記帳">
@@ -34,6 +37,7 @@
         }
     </nav>
 </details>
+
 @if (Model.Entry?.DeletedAt is not null)
 {
     <section class="paper empty-diary">
@@ -52,7 +56,9 @@ else if (Model.Entry is not null)
         <p class="muted">最終更新 @DateTimeOffset.FromUnixTimeMilliseconds(Model.Entry.UpdatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm")</p>
         <a class="button primary" href="@Model.Path/edit">編集する</a>
     </div>
+
     <article class="paper prose">@Html.Raw(Model.Html)</article>
+
     <div class="diary-heading spacer">
         <a href="@Model.Path/edit#history">編集履歴（過去 @Model.Revisions.Count 版）</a>
         <form method="post" action="@Model.Path/trash" data-confirm="この日の日記をゴミ箱に移しますか？">
@@ -76,4 +82,5 @@ else
         }
     </section>
 }
+
 <script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

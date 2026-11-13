@@ -17,15 +17,19 @@ public sealed class UserManagementTests
         await AuthClient.RegisterAsync(admin);
         using var member = app.CreateBrowser();
         await AuthClient.RegisterAsync(member, "member", false);
+
         using var denied = await AuthClient.PostAsync(member, "/admin/users/registration", new()
         {
             ["enabled"] = "false"
         });
+
         Assert.That(denied.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+
         using var closed = await AuthClient.PostAsync(admin, "/admin/users/registration", new()
         {
             ["enabled"] = "false"
         });
+
         Assert.That(closed.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
         using var newcomer = app.CreateBrowser();
@@ -35,7 +39,9 @@ public sealed class UserManagementTests
             ["Password"] = AuthClient.Password,
             ["PasswordConfirmation"] = AuthClient.Password
         });
+
         Assert.That(blocked.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+
         using var retained = await member.GetAsync("/account");
         Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
@@ -52,7 +58,9 @@ public sealed class UserManagementTests
         var id = await UserIdAsync(app, "owner");
 
         using var result = await ChangeAsync(admin, id, operation, "owner");
+
         Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+
         using var stillAdmin = await admin.GetAsync("/admin/users");
         Assert.That(stillAdmin.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
@@ -72,9 +80,12 @@ public sealed class UserManagementTests
         using var login = await AuthClient.LoginAsync(second, "second");
 
         var results = await Task.WhenAll(ChangeAsync(first, firstId, "suspend"), ChangeAsync(second, secondId, "suspend"));
+
         Assert.That(results.Select(x => x.StatusCode), Is.EquivalentTo(new[] { HttpStatusCode.Redirect, HttpStatusCode.Conflict }));
+
         await using var scope = app.Services.CreateAsyncScope();
         Assert.That(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.CountAsync(x => x.IsAdmin && !x.IsSuspended), Is.EqualTo(1));
+
         foreach (var result in results)
         {
             result.Dispose();
@@ -94,12 +105,17 @@ public sealed class UserManagementTests
 
         using var stopped = await ChangeAsync(admin, id, "suspend");
         using var rejected = await member.GetAsync("/account");
+
         Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var loginBlocked = await AuthClient.LoginAsync(member, "member");
         Assert.That(loginBlocked.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var resumed = await ChangeAsync(admin, id, "resume");
         using var stillRejected = await member.GetAsync("/account");
+
         Assert.That(stillRejected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var fresh = await AuthClient.LoginAsync(member, "member");
         Assert.That(fresh.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
@@ -114,8 +130,10 @@ public sealed class UserManagementTests
         await AuthClient.RegisterAsync(admin);
         await AuthClient.RegisterAsync(member, "member", false);
         var id = await UserIdAsync(app, "member");
+
         using var wrongName = await ChangeAsync(admin, id, "delete", "other");
         Assert.That(wrongName.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
         using var deleted = await ChangeAsync(admin, id, "delete", "member");
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 

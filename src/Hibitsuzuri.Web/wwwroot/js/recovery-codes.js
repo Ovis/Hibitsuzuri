@@ -17,7 +17,9 @@ document.querySelector('#download-codes').addEventListener('click', () => {
     const link = document.createElement('a');
     link.href = url;
     link.download = 'hibitsuzuri-recovery-codes.txt';
+
     link.click();
     URL.revokeObjectURL(url);
+
     codesStatus.textContent = '保存先にファイルがあることを確認してください。';
 });

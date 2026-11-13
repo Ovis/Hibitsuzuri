@@ -15,6 +15,7 @@ public sealed class AuthBoundaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
+
         using var registered = await AuthClient.PostAsync(client, "/auth/register", new()
         {
             ["LoginId"] = "owner",
@@ -22,13 +23,17 @@ public sealed class AuthBoundaryTests
             ["PasswordConfirmation"] = AuthClient.Password,
             ["SetupCode"] = "test-only-initial-setup-code"
         });
+
         Assert.That(registered.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var logout = await AuthClient.PostAsync(client, "/auth/logout");
         using var replay = await AuthClient.PostAsync(client, "/auth/codes/confirm", new()
         {
             ["saved"] = "true"
         });
+
         Assert.That(replay.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
         using var page = await client.GetAsync("/account");
         Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
@@ -46,18 +51,24 @@ public sealed class AuthBoundaryTests
             ["PasswordConfirmation"] = AuthClient.Password,
             ["SetupCode"] = "test-only-initial-setup-code"
         });
+
         using var second = app.CreateBrowser();
         using var resume = await AuthClient.LoginAsync(second);
+
         Assert.That(AuthClient.CodePattern().Matches(await resume.Content.ReadAsStringAsync()).Count, Is.EqualTo(10));
+
         using var stale = await AuthClient.PostAsync(first, "/auth/codes/confirm", new()
         {
             ["saved"] = "true"
         });
+
         Assert.That(stale.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
         using var fresh = await AuthClient.PostAsync(second, "/auth/codes/confirm", new()
         {
             ["saved"] = "true"
         });
+
         Assert.That(fresh.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
 
@@ -68,8 +79,10 @@ public sealed class AuthBoundaryTests
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(client);
+
         app.Clock.Advance(TimeSpan.FromHours(8));
         using var logout = await AuthClient.PostAsync(client, "/auth/logout");
+
         Assert.That(logout.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
         await using var scope = app.Services.CreateAsyncScope();
@@ -87,9 +100,11 @@ public sealed class AuthBoundaryTests
         using var other = app.CreateBrowser();
         using var failed = await AuthClient.LoginAsync(other, password: "wrong-password");
         using var success = await AuthClient.LoginAsync(other);
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.SecurityAuditLogs.Select(x => x.Event).ToArrayAsync(), Is.EqualTo(new[] { "setup" }));
+
         var cutoff = app.Clock.GetUtcNow().AddDays(-90).ToUnixTimeMilliseconds();
         db.SecurityAuditLogs.AddRange(
             new SecurityAuditLog { Event = "expired", OccurredAt = cutoff },
@@ -97,6 +112,7 @@ public sealed class AuthBoundaryTests
         await db.SaveChangesAsync();
 
         await scope.ServiceProvider.GetRequiredService<AuthAudit>().PruneAsync();
+
         Assert.That(await db.SecurityAuditLogs.Select(x => x.Event).ToArrayAsync(), Is.EquivalentTo(new[] { "setup", "retained" }));
     }
 
@@ -109,9 +125,13 @@ public sealed class AuthBoundaryTests
         await AuthClient.RegisterAsync(client);
         using var anonymous = app.CreateBrowser();
         const string secret = "secret-that-must-not-be-echoed";
+
         using var failure = await AuthClient.LoginAsync(anonymous, password: secret);
+
         Assert.That(await failure.Content.ReadAsStringAsync(), Does.Not.Contain(secret));
+
         using var excessive = await AuthClient.LoginAsync(anonymous, password: new string('x', 2000));
+
         Assert.That(excessive.StatusCode, Is.AnyOf(HttpStatusCode.BadRequest, HttpStatusCode.RequestEntityTooLarge));
     }
 
@@ -121,8 +141,11 @@ public sealed class AuthBoundaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
+
         using var noToken = await client.PostAsync("/api/passkeys/login/options", new FormUrlEncodedContent([]));
+
         Assert.That(noToken.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
         HttpStatusCode last = HttpStatusCode.OK;
         for (var i = 0; i < 31; i++)
         {

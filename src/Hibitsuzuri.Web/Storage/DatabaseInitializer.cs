@@ -15,6 +15,7 @@ public static class DatabaseInitializer
         {
             await using var command = database.Database.GetDbConnection().CreateCommand();
             command.CommandText = "PRAGMA journal_mode=WAL;";
+
             var mode = await command.ExecuteScalarAsync(cancellationToken);
             if (!string.Equals(mode as string, "wal", StringComparison.OrdinalIgnoreCase))
             {

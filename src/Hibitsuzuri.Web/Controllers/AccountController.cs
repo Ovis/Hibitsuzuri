@@ -45,6 +45,7 @@ public sealed class AccountController(UserManager<AppUser> users, AppDbContext d
         }
 
         await sessions.MarkVerifiedAsync(User);
+
         return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/account");
     }
 
@@ -84,15 +85,19 @@ public sealed class AccountController(UserManager<AppUser> users, AppDbContext d
         await using var transaction = await db.Database.BeginTransactionAsync();
         var token = await users.GeneratePasswordResetTokenAsync(user);
         AuthRules.RequireSuccess(await users.ResetPasswordAsync(user, token, model.Password));
+
         var sessionId = User.FindFirstValue(SessionService.SessionClaim);
         await sessions.RevokeAsync(user.Id, sessionId);
         await db.AuthSessions.Where(x => x.Id == sessionId).ExecuteUpdateAsync(set => set.SetProperty(x => x.SecurityStamp, user.SecurityStamp ?? ""));
         await db.AccountFlows.Where(x => x.UserId == user.Id).ExecuteDeleteAsync();
+
         user.AccessFailedCount = 0;
         user.LockoutEnd = null;
         audit.Add(HttpContext, "password-change", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -115,8 +120,10 @@ public sealed class AccountController(UserManager<AppUser> users, AppDbContext d
         var freshCodes = await codes.ReplaceAsync(user.Id);
         await flows.BeginAsync(HttpContext, user, "confirm-codes");
         audit.Add(HttpContext, "recovery-codes-replaced", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return View("~/Views/Auth/Codes.cshtml", new RecoveryCodesModel { Codes = freshCodes });
     }
 }

@@ -42,6 +42,7 @@ test('同じ日付の複数タブ、日記帳、ユーザーの下書きを分�
     otherOwner.save(draft('tab-d'));
 
     first.remove('tab-a');
+
     assert.deepEqual(second.list().map(item => item.content), ['タブB']);
     assert.equal(otherBook.list().length, 1);
     assert.equal(otherOwner.list().length, 1);
@@ -52,6 +53,7 @@ test('応答不明の保存IDを再読み込み後に再利用し、入力変更
     const first = new DiaryDrafts(storage, 'owner', 'book', '2026-11-13');
     const intent = saveIntent(null, '本文', 'v1', () => 'operation-a');
     first.save({ ...draft('tab-a'), version: 'v1', operation: intent });
+
     const restored = new DiaryDrafts(storage, 'owner', 'book', '2026-11-13').list()[0];
 
     assert.equal(saveIntent(restored.operation, restored.content, restored.version).id, 'operation-a');
@@ -63,11 +65,14 @@ test('容量不足・利用禁止・破損を空一覧や保存成功に置き�
     const storage = new MemoryStorage();
     const drafts = new DiaryDrafts(storage, 'owner', 'book', '2026-11-13');
     storage.setItem('hibitsuzuri.draft.owner.book.2026-11-13.broken', '{broken');
+
     assert.throws(() => drafts.list());
     assert.equal(storage.length, 1);
+
     storage.setItem = () => {
         throw new Error('QuotaExceededError');
     };
+
     assert.throws(() => drafts.save(draft('tab-a')), /QuotaExceededError/);
 });
 

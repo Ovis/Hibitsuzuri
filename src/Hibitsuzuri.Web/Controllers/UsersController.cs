@@ -26,6 +26,7 @@ public sealed class UsersController(AppDbContext db, UserManager<AppUser> users,
 
         page = Math.Clamp(page, 0, 100000);
         var accounts = await db.Users.AsNoTracking().OrderBy(x => x.UserName).Skip(page * 50).Take(51).ToListAsync();
+
         return View(new UsersModel
         {
             Users = accounts.Take(50).ToArray(),
@@ -47,7 +48,9 @@ public sealed class UsersController(AppDbContext db, UserManager<AppUser> users,
         var policy = await db.AccountPolicies.SingleAsync();
         policy.RegistrationEnabled = enabled;
         audit.Add(HttpContext, enabled ? "registration-opened" : "registration-closed", null);
+
         await db.SaveChangesAsync();
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -81,12 +84,14 @@ public sealed class UsersController(AppDbContext db, UserManager<AppUser> users,
         {
             audit.Add(HttpContext, "last-admin-protected", target.Id, succeeded: false);
             await db.SaveChangesAsync();
+
             return Conflict("最後の利用可能な管理者は、権限解除・利用停止・削除できません。");
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
         await sessions.RevokeAsync(target.Id);
         await db.AccountFlows.Where(x => x.UserId == target.Id).ExecuteDeleteAsync();
+
         if (operation == "delete")
         {
             AuthRules.RequireSuccess(await users.DeleteAsync(target));
@@ -113,8 +118,10 @@ public sealed class UsersController(AppDbContext db, UserManager<AppUser> users,
         }
 
         audit.Add(HttpContext, "user-" + operation, target.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return RedirectToAction(nameof(Index));
     }
 

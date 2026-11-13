@@ -13,6 +13,7 @@ public sealed class RecoveryCodes(AppDbContext db)
         // 別タブの古い表示確認や、旧コードで始めた復旧状態を新セットへ流用させない。
         await db.AccountFlows.Where(x => x.UserId == userId).ExecuteDeleteAsync();
         await db.RecoveryCodes.Where(x => x.UserId == userId).ExecuteDeleteAsync();
+
         var codes = Enumerable.Range(0, 10).Select(_ => Convert.ToHexString(RandomNumberGenerator.GetBytes(16))).ToArray();
         foreach (var code in codes)
         {
@@ -20,6 +21,7 @@ public sealed class RecoveryCodes(AppDbContext db)
         }
 
         await db.SaveChangesAsync();
+
         return codes;
     }
 
@@ -66,6 +68,7 @@ public sealed class AccountFlows(AppDbContext db, SessionService sessions, TimeP
             ExpiresAt = clock.GetUtcNow().AddMinutes(10).ToUnixTimeMilliseconds()
         });
         await db.SaveChangesAsync();
+
         context.Response.Cookies.Append(sessions.CookieName("Flow"), token, sessions.CookieOptions(TimeSpan.FromMinutes(10)));
     }
 
@@ -94,6 +97,7 @@ public sealed class AccountFlows(AppDbContext db, SessionService sessions, TimeP
     {
         db.AccountFlows.Remove(flow);
         await db.SaveChangesAsync();
+
         context.Response.Cookies.Delete(sessions.CookieName("Flow"), sessions.CookieOptions(TimeSpan.Zero));
     }
 }

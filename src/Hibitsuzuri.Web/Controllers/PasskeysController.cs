@@ -35,6 +35,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
     {
         var stamps = await db.Users.Where(x => !x.IsSuspended && x.RecoveryCodesConfirmed).ToDictionaryAsync(x => x.Id, x => x.SecurityStamp);
         var id = ceremonies.Begin(HttpContext, sessions, new PasskeyCeremony { Purpose = "login", UserStamps = stamps, RememberMe = rememberMe });
+
         return id is null ? Failure(429) : Options(id, await signIn.MakePasskeyRequestOptionsAsync(null));
     }
 
@@ -102,6 +103,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
         AuthRules.RequireSuccess(await users.AddOrUpdatePasskeyAsync(assertion.User, assertion.Passkey));
         await sessions.SignInAsync(HttpContext, assertion.User, ceremony.RememberMe);
         await transaction.CommitAsync();
+
         return Ok(new
         {
             redirect = "/"
@@ -134,6 +136,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
         AuthRules.RequireSuccess(await users.AddOrUpdatePasskeyAsync(assertion.User, assertion.Passkey));
         await sessions.MarkVerifiedAsync(User);
         await transaction.CommitAsync();
+
         return Ok(new
         {
             redirect = "/account"
@@ -181,8 +184,10 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
         attestation.Passkey.Name = model.Name;
         AuthRules.RequireSuccess(await users.AddOrUpdatePasskeyAsync(user, attestation.Passkey));
         audit.Add(HttpContext, "passkey-added", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return Ok(new
         {
             redirect = "/account/passkeys"
@@ -207,6 +212,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
 
         passkey.Name = name;
         AuthRules.RequireSuccess(await users.AddOrUpdatePasskeyAsync(user, passkey));
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -229,8 +235,10 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
         await using var transaction = await db.Database.BeginTransactionAsync();
         AuthRules.RequireSuccess(await users.RemovePasskeyAsync(user, passkey.CredentialId));
         audit.Add(HttpContext, "passkey-removed", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return RedirectToAction(nameof(Index));
     }
 

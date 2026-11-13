@@ -9,6 +9,7 @@ const conflict = document.querySelector('#conflict');
 const candidatePanel = document.querySelector('#draft-candidates');
 const csrf = form.querySelector('[name="__RequestVerificationToken"]').value;
 const draftId = crypto.randomUUID();
+
 let drafts;
 let baseContent = content.value;
 let version = form.dataset.version || '';
@@ -70,6 +71,7 @@ async function updatePreview() {
 
     const request = new AbortController();
     previewRequest = request;
+
     try {
         const response = await post('/api/diary/preview', { content: content.value }, request.signal);
         if (!response.ok) {
@@ -90,8 +92,10 @@ async function updatePreview() {
 
 function changed() {
     document.querySelector('#word-count').textContent = `${[...content.value].length.toLocaleString()} / 100,000文字`;
+
     clearTimeout(draftTimer);
     draftTimer = setTimeout(persistDraft, 250);
+
     clearTimeout(previewTimer);
     previewTimer = setTimeout(updatePreview, 400);
 }
@@ -100,11 +104,14 @@ function renderCandidates(candidates) {
     candidatePanel.hidden = candidates.length === 0;
     const list = document.querySelector('#draft-list');
     list.replaceChildren();
+
     for (const draft of candidates) {
         const row = document.createElement('div');
         row.className = 'book-row';
+
         const label = document.createElement('span');
         label.textContent = `${new Date(draft.savedAt).toLocaleString()} ／ ${[...draft.content].length.toLocaleString()}文字`;
+
         const restore = document.createElement('button');
         restore.type = 'button';
         restore.textContent = '復元';
@@ -118,10 +125,13 @@ function renderCandidates(candidates) {
             version = draft.version;
             operation = draft.operation;
             conflict.hidden = true;
+
             changed();
             persistDraft();
+
             showNotice('下書きを復元しました。保存日時と本文を確認してから保存してください。元の候補は明示的に破棄するまで残ります。');
         });
+
         const discard = document.createElement('button');
         discard.type = 'button';
         discard.textContent = '破棄';
@@ -137,6 +147,7 @@ function renderCandidates(candidates) {
                 showNotice('下書きを破棄できませんでした。保存領域の許可を確認してください。');
             }
         });
+
         row.append(label, restore, discard);
         list.append(row);
     }
@@ -161,9 +172,11 @@ form.addEventListener('submit', async event => {
 
     operation = saveIntent(operation, content.value, version);
     persistDraft();
+
     busy = true;
     content.readOnly = true;
     document.querySelector('#save-entry').disabled = true;
+
     try {
         const response = await post(`/api/diary/${form.dataset.book}/${form.dataset.date}/save`, {
             content: operation.content, version: operation.version, operationId: operation.id
@@ -198,6 +211,7 @@ form.addEventListener('submit', async event => {
         baseContent = content.value;
         version = result.version;
         operation = null;
+
         try {
             removeCurrentDraft();
         } catch {
@@ -229,7 +243,9 @@ document.querySelector('#keep-mine').addEventListener('click', () => {
     baseContent = latest.content;
     operation = null;
     conflict.hidden = true;
+
     persistDraft();
+
     showNotice('入力中の本文を採用しました。「保存する」で反映します。');
 });
 
@@ -243,6 +259,7 @@ document.querySelector('#use-latest').addEventListener('click', () => {
     version = latest.version;
     operation = null;
     conflict.hidden = true;
+
     changed();
 });
 
@@ -268,6 +285,7 @@ document.querySelectorAll('[data-revision]').forEach(button => {
 
         content.value = document.getElementById(`revision-${button.dataset.revision}`).value;
         operation = null;
+
         changed();
         showNotice('過去の本文を読み込みました。「保存する」を押すまで日記は変わりません。');
     });
@@ -285,6 +303,7 @@ document.querySelectorAll('[data-format]').forEach(button => {
             heading: `\n## ${selection || '見出し'}\n`, list: `\n- ${selection || '項目'}\n`,
             link: `[${selection || 'リンク名'}](https://example.com)`
         };
+
         content.setRangeText(formats[button.dataset.format], content.selectionStart, content.selectionEnd, 'select');
         content.focus();
         operation = null;
@@ -323,6 +342,7 @@ try {
     drafts = new DiaryDrafts(localStorage, form.dataset.owner, form.dataset.book, form.dataset.date);
     const candidates = drafts.list();
     renderCandidates(candidates);
+
     if (candidates.length === 0 && form.dataset.new === 'true') {
         content.value = document.querySelector('#book-template').value;
         if (content.value) {
@@ -335,5 +355,6 @@ try {
 }
 
 document.querySelector('#word-count').textContent = `${[...content.value].length.toLocaleString()} / 100,000文字`;
+
 // 初期化に失敗した画面から通常のフォーム送信で入力を失わないよう、準備後だけ有効にする。
 document.querySelector('#save-entry').disabled = false;

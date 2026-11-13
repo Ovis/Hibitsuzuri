@@ -52,10 +52,12 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
             var freshCodes = await codes.ReplaceAsync(user.Id);
             await flows.BeginAsync(HttpContext, user, "confirm-login", model.RememberMe);
             await transaction.CommitAsync();
+
             return View("Codes", new RecoveryCodesModel { Codes = freshCodes });
         }
 
         await sessions.SignInAsync(HttpContext, user, model.RememberMe);
+
         return LocalRedirect(Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : "/");
     }
 
@@ -122,8 +124,10 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
         var freshCodes = await codes.ReplaceAsync(user.Id);
         await flows.BeginAsync(HttpContext, user, "confirm-login");
         audit.Add(HttpContext, model.IsSetup ? "setup" : "registration", user.Id);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return View("Codes", new RecoveryCodesModel { Codes = freshCodes });
     }
 
@@ -147,12 +151,14 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
         user.RecoveryCodesConfirmed = true;
         await db.SaveChangesAsync();
         await flows.EndAsync(HttpContext, flow);
+
         if (flow.Purpose == "confirm-login")
         {
             await sessions.SignInAsync(HttpContext, user, flow.RememberMe);
         }
 
         await transaction.CommitAsync();
+
         return Redirect(flow.Purpose == "confirm-recovery" ? "/auth/login" : "/account");
     }
 
@@ -163,6 +169,7 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
         await flows.CancelAsync(HttpContext);
         ceremonies.Cancel(HttpContext, sessions);
         await sessions.SignOutAsync(HttpContext);
+
         return RedirectToAction(nameof(Login));
     }
 

@@ -15,6 +15,7 @@ public sealed class ErrorController : Controller
     {
         var exception = HttpContext.Features.Get<IExceptionHandlerPathFeature>();
         var reExecution = HttpContext.Features.Get<IStatusCodeReExecuteFeature>();
+
         // 不正・過大なフォームを再バインドせず、再実行されたルートから元のエラーを読む。
         var code = exception is null && int.TryParse(RouteData.Values["statusCode"]?.ToString(), out var statusCode)
             && statusCode is >= 400 and <= 599 ? statusCode : StatusCodes.Status500InternalServerError;

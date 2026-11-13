@@ -10,6 +10,7 @@ public sealed class DiaryMarkdownTests
     public void SupportsAgreedMarkdownSyntax()
     {
         var html = new DiaryMarkdown().Render("# 見出し\n\n> 引用\n\n- [x] 済\n\n| 項目 | 値 |\n| --- | --- |\n| 本 | 1 |\n\n```text\n<script>\n```\n\n**太字** *斜体*");
+
         Assert.Multiple(() =>
         {
             Assert.That(html, Does.Contain("<h1>見出し</h1>"));
@@ -30,6 +31,7 @@ public sealed class DiaryMarkdownTests
     public void RejectsActiveHtmlAndUnmanagedImages(string input)
     {
         var html = new DiaryMarkdown().Render(input);
+
         Assert.That(html, Does.Not.Contain("<script").And.Not.Contain("<img").And.Not.Contain("href="));
     }
 
@@ -38,6 +40,7 @@ public sealed class DiaryMarkdownTests
     public void SafeLinksOpenWithoutOpenerOrReferrer()
     {
         var html = new DiaryMarkdown().Render("[リンク](https://example.com/?q=test&x=1)");
+
         Assert.That(html, Does.Contain("target=\"_blank\" rel=\"noopener noreferrer\"").And.Contain("<a href=\"https://example.com/"));
     }
 }

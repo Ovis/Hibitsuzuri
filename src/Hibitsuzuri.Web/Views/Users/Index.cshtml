@@ -2,16 +2,19 @@
 @{
     ViewData["Title"] = "ユーザー管理";
 }
+
 <div class="page-heading"><h1>ユーザー管理</h1></div>
 <section class="paper settings-panel">
     <p>操作には直近10分以内の本人確認が必要です。権限変更・利用停止・再開後は、対象ユーザーの再ログインが必要です。</p>
     <p><a href="/account/reauthenticate?returnUrl=/admin/users">本人確認する</a></p>
+
     <h2>新規登録の受付：@(Model.RegistrationEnabled ? "ON" : "OFF")</h2>
     <form method="post" action="/admin/users/registration">
         @Html.AntiForgeryToken()
         <input type="hidden" name="enabled" value="@((!Model.RegistrationEnabled).ToString().ToLowerInvariant())" />
         <button class="button" type="submit">@(Model.RegistrationEnabled ? "登録受付を停止" : "登録受付を開始")</button>
     </form>
+
     @foreach (var account in Model.Users)
     {
         <div class="credential-row">
@@ -29,6 +32,7 @@
                 <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 「@account.UserName」への操作内容を確認しました</label>
                 <button class="button" type="submit">適用する</button>
             </form>
+
             <details>
                 <summary>ユーザーを完全削除</summary>
                 <p>「@account.UserName」のアカウントと関連データを完全削除します。元に戻せません。</p>
@@ -43,6 +47,7 @@
             </details>
         </div>
     }
+
     <nav class="actions" aria-label="一覧のページ">
         @if (Model.Page > 0)
         {

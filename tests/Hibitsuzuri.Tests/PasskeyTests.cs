@@ -15,21 +15,27 @@ public sealed class PasskeyTests
         await AuthClient.RegisterAsync(owner);
         using var authenticator = new TestAuthenticator();
         await RegisterKeyAsync(owner, authenticator);
+
         using var login = app.CreateBrowser();
         var options = await OptionsAsync(login, "login");
         var credential = authenticator.Get(options.GetProperty("publicKeyOptions"));
 
         using var success = await VerifyAsync(login, "login", options, credential);
+
         Assert.That(success.StatusCode, Is.EqualTo(HttpStatusCode.OK), await success.Content.ReadAsStringAsync());
+
         using var page = await login.GetAsync("/account");
         Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var replay = await VerifyAsync(login, "login", options, credential);
         Assert.That(replay.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
         app.Clock.Advance(TimeSpan.FromMinutes(10));
         var reauth = await OptionsAsync(login, "reauthenticate");
         using var verified = await VerifyAsync(login, "reauthenticate", reauth, authenticator.Get(reauth.GetProperty("publicKeyOptions")));
+
         Assert.That(verified.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var passwordPage = await login.GetAsync("/account/password");
         Assert.That(passwordPage.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
@@ -46,6 +52,7 @@ public sealed class PasskeyTests
         var options = await OptionsAsync(owner, "register");
 
         using var rejected = await VerifyAsync(owner, "register", options, authenticator.Create(options.GetProperty("publicKeyOptions"), origin, verified));
+
         Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
@@ -71,6 +78,7 @@ public sealed class PasskeyTests
         }
 
         using var rejected = await VerifyAsync(client, "login", options, credential);
+
         Assert.That(rejected.StatusCode, Is.AnyOf(HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized));
     }
 
@@ -85,6 +93,7 @@ public sealed class PasskeyTests
         await RegisterKeyAsync(owner, authenticator);
         using var other = app.CreateBrowser();
         await AuthClient.RegisterAsync(other, "another", false);
+
         using var rename = await AuthClient.PostAsync(other, "/account/passkeys/rename", new()
         {
             ["id"] = authenticator.Id,
@@ -95,6 +104,7 @@ public sealed class PasskeyTests
             ["id"] = authenticator.Id,
             ["confirmed"] = "true"
         });
+
         Assert.That(rename.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         Assert.That(delete.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
 
@@ -106,6 +116,7 @@ public sealed class PasskeyTests
 
         var options = await OptionsAsync(client, "login");
         using var success = await VerifyAsync(client, "login", options, authenticator.Get(options.GetProperty("publicKeyOptions")));
+
         Assert.That(success.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
@@ -120,6 +131,7 @@ public sealed class PasskeyTests
         await RegisterKeyAsync(owner, authenticator);
         using var login = app.CreateBrowser();
         var options = await OptionsAsync(login, "login");
+
         using var recovery = app.CreateBrowser();
         using var start = await AuthClient.PostAsync(recovery, "/auth/recovery", new()
         {
@@ -134,6 +146,7 @@ public sealed class PasskeyTests
         Assert.That(complete.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         using var rejected = await VerifyAsync(login, "login", options, authenticator.Get(options.GetProperty("publicKeyOptions")));
+
         Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
@@ -142,6 +155,7 @@ public sealed class PasskeyTests
     {
         var options = await OptionsAsync(client, "register");
         using var registered = await VerifyAsync(client, "register", options, authenticator.Create(options.GetProperty("publicKeyOptions")));
+
         Assert.That(registered.StatusCode, Is.EqualTo(HttpStatusCode.OK), await registered.Content.ReadAsStringAsync());
     }
 
@@ -150,7 +164,9 @@ public sealed class PasskeyTests
     {
         using var response = await AuthClient.PostAsync(client, $"/api/passkeys/{purpose}/options");
         var json = await response.Content.ReadAsStringAsync();
+
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), json);
+
         return JsonSerializer.Deserialize<JsonElement>(json);
     }
 

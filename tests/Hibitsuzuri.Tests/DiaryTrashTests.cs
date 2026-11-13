@@ -18,10 +18,12 @@ public sealed class DiaryTrashTests
         await AuthClient.RegisterAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var version = await DiaryClient.SaveVersionAsync(client, book, "残す本文");
+
         using var deleted = await ChangeAsync(client, book, version, "delete");
         using var recreate = await DiaryClient.SaveAsync(client, book, "重複作成");
         using var oldSave = await DiaryClient.SaveAsync(client, book, "削除前の画面", version);
         using var staleRestore = await ChangeAsync(client, book, version, "restore");
+
         var trashVersion = await VersionAsync(app, book);
         using var restored = await ChangeAsync(client, book, trashVersion, "restore");
         using var oldDelete = await ChangeAsync(client, book, trashVersion, "delete");
@@ -49,9 +51,11 @@ public sealed class DiaryTrashTests
         var operation = Guid.NewGuid().ToString();
         using var created = await DiaryClient.SaveAsync(client, book, "初版", operation: operation);
         var version = await DiaryClient.SaveVersionAsync(client, book, "現行", await VersionAsync(app, book));
+
         using var deleted = await ChangeAsync(client, book, version, "delete");
         using var purged = await ChangeAsync(client, book, await VersionAsync(app, book), "purge");
         using var replay = await DiaryClient.SaveAsync(client, book, "初版", operation: operation);
+
         Assert.That(purged.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
         Assert.That(replay.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
@@ -59,6 +63,7 @@ public sealed class DiaryTrashTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.DiaryEntries.CountAsync(), Is.Zero);
         Assert.That(await db.DiaryRevisions.CountAsync(), Is.Zero);
+
         await DiaryClient.SaveVersionAsync(client, book, "新しく作成");
     }
 
@@ -74,16 +79,20 @@ public sealed class DiaryTrashTests
         var version = await DiaryClient.SaveVersionAsync(client, book, "一件目");
         using var deleted = await ChangeAsync(client, book, version, "delete");
         var oldSnapshot = SnapshotFromHtml(await client.GetStringAsync($"/diary/{book}/trash"));
+
         var next = await DiaryClient.SaveVersionAsync(client, book, "二件目", date: "2020-05-11");
         using var nextDeleted = await ChangeAsync(client, book, next, "delete", "2020-05-11");
+
         var unrelated = await DiaryClient.SaveVersionAsync(client, other, "ほかの日記帳");
         using var unrelatedDeleted = await ChangeAsync(client, other, unrelated, "delete");
+
         using var stale = await AuthClient.PostAsync(client, $"/diary/{book}/trash/empty", new()
         {
             ["name"] = "日記",
             ["count"] = "1",
             ["snapshot"] = oldSnapshot
         });
+
         Assert.That(stale.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
 
         var current = SnapshotFromHtml(await client.GetStringAsync($"/diary/{book}/trash"));
@@ -93,7 +102,9 @@ public sealed class DiaryTrashTests
             ["count"] = "2",
             ["snapshot"] = current
         });
+
         Assert.That(empty.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.DiaryEntries.Select(x => x.NotebookId).ToListAsync(), Is.EqualTo(new[] { other }));
@@ -111,9 +122,11 @@ public sealed class DiaryTrashTests
         var book = await DiaryClient.CreateBookAsync(member);
         var version = await DiaryClient.SaveVersionAsync(member, book, "初版");
         await DiaryClient.SaveVersionAsync(member, book, "改訂", version);
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var user = await db.Users.SingleAsync(x => x.UserName == "member");
+
         using var deletion = await AuthClient.PostAsync(admin, "/admin/users/change", new()
         {
             ["id"] = user.Id,

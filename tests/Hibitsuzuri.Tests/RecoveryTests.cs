@@ -23,14 +23,18 @@ public sealed class RecoveryTests
             ["Password"] = "new-password-for-test",
             ["PasswordConfirmation"] = "new-password-for-test"
         });
+
         Assert.That(changed.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var retained = await current.GetAsync("/account");
         using var revoked = await other.GetAsync("/account");
+
         Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(revoked.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
         app.Clock.Advance(TimeSpan.FromHours(8));
         using var expired = await current.GetAsync("/account");
+
         Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
 
@@ -47,17 +51,22 @@ public sealed class RecoveryTests
         {
             ["confirmed"] = "true"
         });
+
         Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+
         using var verified = await AuthClient.PostAsync(client, "/account/reauthenticate", new()
         {
             ["password"] = AuthClient.Password,
             ["returnUrl"] = "https://attacker.example/"
         });
+
         Assert.That(verified.Headers.Location?.OriginalString, Is.EqualTo("/account"));
+
         using var accepted = await AuthClient.PostAsync(client, "/account/codes", new()
         {
             ["confirmed"] = "true"
         });
+
         Assert.That(AuthClient.CodePattern().Matches(await accepted.Content.ReadAsStringAsync()).Count, Is.EqualTo(10));
     }
 
@@ -72,16 +81,20 @@ public sealed class RecoveryTests
 
         using var started = await StartAsync(recovery, oldCodes[0]);
         Assert.That(started.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var privatePage = await recovery.GetAsync("/account");
         Assert.That(privatePage.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var completed = await AuthClient.PostAsync(recovery, "/auth/recovery/password", new()
         {
             ["Password"] = "recovered-password",
             ["PasswordConfirmation"] = "recovered-password"
         });
         var freshCodes = AuthClient.CodePattern().Matches(await completed.Content.ReadAsStringAsync()).Select(x => x.Value).ToArray();
+
         Assert.That(freshCodes, Has.Length.EqualTo(10));
         Assert.That(freshCodes.Intersect(oldCodes), Is.Empty);
+
         using var oldSession = await original.GetAsync("/account");
         Assert.That(oldSession.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
@@ -89,11 +102,15 @@ public sealed class RecoveryTests
         {
             ["saved"] = "true"
         });
+
         Assert.That(confirmed.Headers.Location?.OriginalString, Is.EqualTo("/auth/login"));
+
         using var notLoggedIn = await recovery.GetAsync("/account");
         Assert.That(notLoggedIn.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         using var oldCode = await StartAsync(recovery, oldCodes[1]);
         Assert.That(oldCode.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var login = await AuthClient.LoginAsync(recovery, password: "recovered-password");
         Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
@@ -110,18 +127,23 @@ public sealed class RecoveryTests
         using var existing = app.CreateBrowser();
         var codes = await AuthClient.RegisterAsync(existing);
         using var recovery = app.CreateBrowser();
+
         for (var i = 0; i < 5; i++)
         {
             using var failed = await StartAsync(recovery, "wrong-code");
         }
 
         using var blocked = await StartAsync(recovery, codes[0]);
+
         Assert.That(blocked.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var normal = app.CreateBrowser();
         using var login = await AuthClient.LoginAsync(normal);
         Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         app.Clock.Advance(TimeSpan.FromMinutes(15));
         using var accepted = await StartAsync(recovery, codes[0]);
+
         Assert.That(accepted.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
 
@@ -141,7 +163,9 @@ public sealed class RecoveryTests
             ["Password"] = "recovered-password",
             ["PasswordConfirmation"] = "recovered-password"
         });
+
         Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
         using var login = await AuthClient.LoginAsync(recovery);
         Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
@@ -155,6 +179,7 @@ public sealed class RecoveryTests
         var codes = await AuthClient.RegisterAsync(original);
         using var recovery = app.CreateBrowser();
         using var started = await StartAsync(recovery, codes[0]);
+
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -166,11 +191,15 @@ public sealed class RecoveryTests
             ["Password"] = "recovered-password",
             ["PasswordConfirmation"] = "recovered-password"
         });
+
         Assert.That(failed.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
+
         using var retained = await original.GetAsync("/account");
         Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var oldPassword = await AuthClient.LoginAsync(recovery);
         Assert.That(oldPassword.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         await using var check = app.Services.CreateAsyncScope();
         var database = check.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await database.RecoveryCodes.CountAsync(), Is.EqualTo(9));
@@ -187,7 +216,9 @@ public sealed class RecoveryTests
         using var second = app.CreateBrowser();
 
         var results = await Task.WhenAll(StartAsync(first, codes[0]), StartAsync(second, codes[0]));
+
         Assert.That(results.Select(x => x.StatusCode), Is.EquivalentTo(new[] { HttpStatusCode.OK, HttpStatusCode.Redirect }));
+
         foreach (var response in results)
         {
             response.Dispose();

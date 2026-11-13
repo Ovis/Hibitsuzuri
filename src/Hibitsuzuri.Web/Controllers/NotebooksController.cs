@@ -36,6 +36,7 @@ public sealed class NotebooksController(AppDbContext database) : Controller
         var book = new Notebook { UserId = Owner, Name = normalized ?? "", Position = await Books().CountAsync() };
         database.Notebooks.Add(book);
         await database.SaveChangesAsync();
+
         return Redirect($"/books/{book.Id}");
     }
 
@@ -80,7 +81,9 @@ public sealed class NotebooksController(AppDbContext database) : Controller
         book.Name = name ?? "";
         book.Template = template;
         book.Version = Guid.NewGuid().ToString("N");
+
         await database.SaveChangesAsync();
+
         return Redirect("/books");
     }
 

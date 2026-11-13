@@ -13,7 +13,9 @@ public static class DiaryClient
         {
             ["name"] = name
         });
+
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Redirect), await response.Content.ReadAsStringAsync());
+
         return response.Headers.Location?.ToString().Split('/').Last() ?? throw new InvalidOperationException();
     }
 
@@ -33,7 +35,9 @@ public static class DiaryClient
     public static async Task<string> SaveVersionAsync(HttpClient client, string book, string content, string version = "", string date = "2020-05-10")
     {
         using var response = await SaveAsync(client, book, content, version, date: date);
+
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return json.RootElement.GetProperty("version").GetString() ?? throw new InvalidOperationException();
     }

@@ -15,6 +15,7 @@ public sealed class StorageTests
     {
         var first = new TestApplication { PreserveData = true };
         string protectedValue;
+
         await using (first)
         {
             using var browser = first.CreateBrowser();
@@ -31,6 +32,7 @@ public sealed class StorageTests
         using var secondBrowser = second.CreateBrowser();
         var recovered = second.Services.GetRequiredService<IDataProtectionProvider>()
             .CreateProtector("restart-test").Unprotect(protectedValue);
+
         await using var connection = new SqliteConnection(second.Services.GetRequiredService<DataDirectory>().ConnectionString);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
@@ -41,6 +43,7 @@ public sealed class StorageTests
         var secondDatabase = secondScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var migrations = await secondDatabase.Database.GetAppliedMigrationsAsync();
         var pending = await secondDatabase.Database.GetPendingMigrationsAsync();
+
         Assert.Multiple(() =>
         {
             Assert.That(recovered, Is.EqualTo("persisted-value"));
@@ -62,6 +65,7 @@ public sealed class StorageTests
         command.CommandText = "PRAGMA journal_mode;";
 
         Assert.That(await command.ExecuteScalarAsync(), Is.EqualTo("wal"));
+
         command.CommandText = "CREATE TABLE Parent (Id INTEGER PRIMARY KEY); CREATE TABLE Child (ParentId INTEGER REFERENCES Parent(Id));";
         await command.ExecuteNonQueryAsync();
 

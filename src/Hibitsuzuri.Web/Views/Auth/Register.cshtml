@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = Model.IsSetup ? "初回セットアップ" : "ユーザー登録";
 }
+
 <div class="page-heading"><h1>@ViewData["Title"]</h1></div>
 <section class="paper settings-panel">
     <p>@(Model.IsSetup ? "最初のユーザーを管理者として作成します。" : "登録後、リカバリーコードを保存すると利用を開始できます。")</p>
@@ -17,5 +18,6 @@
         }
         <button class="button primary" type="submit">@(Model.IsSetup ? "管理者を作成" : "登録する")</button>
     </form>
+
     <p><a href="/auth/login">ログインへ</a></p>
 </section>

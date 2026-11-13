@@ -3,6 +3,7 @@
     ViewData["Title"] = "アカウント";
     ViewData["Navigation"] = "account";
 }
+
 <div class="page-heading"><h1>アカウント</h1></div>
 <section class="paper settings-panel">
     <h2>@Model.UserName</h2>
@@ -17,6 +18,7 @@
         <a class="button" href="/account/password">パスワード変更</a>
         <a class="button" href="/account/reauthenticate">本人確認</a>
     </div>
+
     <h2>リカバリーコードの再生成</h2>
     <p>古いコードはすべて無効になります。直近10分以内の本人確認が必要です。</p>
     <form method="post" action="/account/codes" class="account-form">

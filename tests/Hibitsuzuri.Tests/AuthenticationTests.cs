@@ -16,6 +16,7 @@ public sealed class AuthenticationTests
         await using var app = new TestApplication();
         using var first = app.CreateBrowser();
         using var second = app.CreateBrowser();
+
         var responses = await Task.WhenAll(new[] { first, second }.Select((client, i) => AuthClient.PostAsync(client, "/auth/register", new()
         {
             ["LoginId"] = "owner" + i,
@@ -25,12 +26,15 @@ public sealed class AuthenticationTests
         })));
 
         Assert.That(responses.Select(x => x.StatusCode), Is.EquivalentTo(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }));
+
         using var page = await first.GetAsync("/account");
         Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.Users.CountAsync(x => x.IsAdmin), Is.EqualTo(1));
         Assert.That(await db.AuthSessions.CountAsync(), Is.Zero);
+
         foreach (var response in responses)
         {
             response.Dispose();
@@ -48,7 +52,9 @@ public sealed class AuthenticationTests
         await AuthClient.RegisterAsync(member, "member", false);
 
         var html = await member.GetStringAsync("/account");
+
         Assert.That(html, Does.Contain("member").And.Not.Contain(">owner<"));
+
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.That(await db.Users.CountAsync(x => x.IsAdmin), Is.EqualTo(1));
@@ -65,16 +71,21 @@ public sealed class AuthenticationTests
         using var setup = app.CreateBrowser();
         await AuthClient.RegisterAsync(setup);
         using var client = app.CreateBrowser();
+
         using var login = await AuthClient.LoginAsync(client, remember: remember);
         var cookie = login.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("__Host-Hibitsuzuri.Session=", StringComparison.Ordinal));
+
         Assert.That(cookie.Contains("expires=", StringComparison.Ordinal), Is.EqualTo(remember));
         Assert.That(cookie, Does.Contain("secure").And.Contain("httponly"));
 
         app.Clock.Advance(TimeSpan.FromHours(hours) - TimeSpan.FromSeconds(1));
         using var valid = await client.GetAsync("/account");
+
         Assert.That(valid.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         app.Clock.Advance(TimeSpan.FromSeconds(1));
         using var expired = await client.GetAsync("/account");
+
         Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
 
         await using var scope = app.Services.CreateAsyncScope();
@@ -90,6 +101,7 @@ public sealed class AuthenticationTests
         using var existing = app.CreateBrowser();
         await AuthClient.RegisterAsync(existing);
         using var attacker = app.CreateBrowser();
+
         for (var i = 0; i < 5; i++)
         {
             using var failed = await AuthClient.LoginAsync(attacker, password: "wrong-password");
@@ -97,11 +109,15 @@ public sealed class AuthenticationTests
         }
 
         using var blocked = await AuthClient.LoginAsync(attacker);
+
         Assert.That(blocked.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         using var stillValid = await existing.GetAsync("/account");
         Assert.That(stillValid.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
         app.Clock.Advance(TimeSpan.FromMinutes(5));
         using var accepted = await AuthClient.LoginAsync(attacker);
+
         Assert.That(accepted.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
     }
 

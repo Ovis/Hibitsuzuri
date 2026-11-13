@@ -22,7 +22,9 @@ public sealed class DiaryMarkdown
         var renderer = new HtmlRenderer(writer);
         _pipeline.Setup(renderer);
         renderer.ObjectRenderers.Replace<LinkInlineRenderer>(new SafeLinkRenderer());
+
         renderer.Render(Markdown.Parse(text, _pipeline));
+
         return writer.ToString();
     }
 

@@ -30,6 +30,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
     {
         var books = await Books().ToListAsync();
         var selected = books.FirstOrDefault(x => x.Id == Request.Cookies[SelectionCookie]) ?? books.FirstOrDefault();
+
         return Redirect(selected is null ? "/books" : $"/diary/{selected.Id}/{Day(Today)}");
     }
 
@@ -60,6 +61,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             MaxAge = TimeSpan.FromDays(365),
             IsEssential = true
         });
+
         return View(page);
     }
 
@@ -173,6 +175,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
                 Sequence = (revisions.FirstOrDefault()?.Sequence ?? 0) + 1
             });
             database.DiaryRevisions.RemoveRange(revisions.Skip(4));
+
             entry.Content = content;
             entry.UpdatedAt = now;
             entry.Version = Guid.NewGuid().ToString("N");
@@ -187,6 +190,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         });
         await database.SaveChangesAsync();
         await transaction.CommitAsync();
+
         return Json(new
         {
             saved = true,
@@ -206,6 +210,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         }
 
         var entries = await Trashed(bookId).OrderByDescending(x => x.EntryDate).ToListAsync();
+
         return View(new DiaryTrash { Book = book, Entries = entries, Snapshot = Snapshot(entries) });
     }
 
@@ -246,7 +251,9 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         }
 
         entry.Version = Guid.NewGuid().ToString("N");
+
         await database.SaveChangesAsync();
+
         return Redirect(action == "purge" ? $"/diary/{bookId}/trash" : $"/diary/{bookId}/{date}");
     }
 
@@ -269,6 +276,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
 
         database.DiaryEntries.RemoveRange(entries);
         await database.SaveChangesAsync();
+
         return Redirect($"/diary/{bookId}/trash");
     }
 
@@ -291,6 +299,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         var entry = await database.DiaryEntries.SingleOrDefaultAsync(x => x.NotebookId == bookId && x.EntryDate == day);
         var revisions = entry is null ? [] : await database.DiaryRevisions.Where(x => x.EntryId == entry.Id)
             .OrderByDescending(x => x.Sequence).ToListAsync();
+
         return new DiaryPage
         {
             Book = book,

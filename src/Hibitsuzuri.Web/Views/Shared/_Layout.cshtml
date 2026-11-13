@@ -6,6 +6,7 @@
         : $"hibitsuzuri.appearance.user.{preferenceOwner}";
     var currentPage = ViewData["Navigation"] as string;
 }
+
 <!DOCTYPE html>
 <html lang="ja" data-theme="light" data-color="neutral" data-appearance-key="@preferenceKey">
 <head>
@@ -30,6 +31,7 @@
                 </a>
                 <p class="brand-sub">日々を、綴る。</p>
             </div>
+
             <nav class="navigation" aria-label="メインメニュー">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
@@ -48,6 +50,7 @@
                 }
             </nav>
         </header>
+
         <main id="main" class="main" tabindex="-1">
             <div class="content">@RenderBody()</div>
         </main>

@@ -20,14 +20,17 @@ public static class AuthConfiguration
         {
             options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
             options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-";
+
             options.Password.RequiredLength = 1;
             options.Password.RequireDigit = false;
             options.Password.RequireLowercase = false;
             options.Password.RequireUppercase = false;
             options.Password.RequireNonAlphanumeric = false;
+
             options.Lockout.MaxFailedAccessAttempts = 5;
             options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
         }).AddEntityFrameworkStores<AppDbContext>().AddSignInManager().AddDefaultTokenProviders();
+
         builder.Services.AddScoped<IPasswordValidator<AppUser>, ScalarPasswordValidator>();
         builder.Services.AddScoped<SessionService>();
         builder.Services.AddScoped<RecoveryCodes>();
@@ -47,10 +50,12 @@ public static class AuthConfiguration
                 options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
+
                 options.SlidingExpiration = false;
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
                 options.TimeProvider = clock;
                 options.LoginPath = "/auth/login";
+
                 options.Events.OnValidatePrincipal = async context =>
                 {
                     var sessions = context.HttpContext.RequestServices.GetRequiredService<SessionService>();
@@ -63,6 +68,7 @@ public static class AuthConfiguration
                 options.Events.OnRedirectToLogin = context => AuthRedirectAsync(context, 401);
                 options.Events.OnRedirectToAccessDenied = context => AuthRedirectAsync(context, 403);
             });
+
         builder.Services.Configure<IdentityPasskeyOptions>(options =>
         {
             options.ServerDomain = site.PublicOrigin.IdnHost;
@@ -106,6 +112,7 @@ public static class AuthConfiguration
         }
 
         context.Response.Redirect(context.RedirectUri);
+
         return Task.CompletedTask;
     }
 }

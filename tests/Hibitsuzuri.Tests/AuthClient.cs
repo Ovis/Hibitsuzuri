@@ -13,6 +13,7 @@ public static partial class AuthClient
     {
         fields ??= [];
         fields["__RequestVerificationToken"] = await browser.GetStringAsync("/fixture/token");
+
         return await browser.PostAsync(path, new FormUrlEncodedContent(fields));
     }
 
@@ -27,7 +28,9 @@ public static partial class AuthClient
             ["SetupCode"] = setup ? "test-only-initial-setup-code" : ""
         });
         var html = await response.Content.ReadAsStringAsync();
+
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), html);
+
         var codes = CodePattern().Matches(html).Select(x => x.Value).Distinct().ToArray();
         Assert.That(codes, Has.Length.EqualTo(10), html);
 
@@ -35,7 +38,9 @@ public static partial class AuthClient
         {
             ["saved"] = "true"
         });
+
         Assert.That(confirmation.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
         return codes;
     }
 

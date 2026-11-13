@@ -2,10 +2,12 @@
 @{
     ViewData["Title"] = "エラー";
 }
+
 <div class="page-heading">
     <p class="eyebrow">@Model.StatusCode</p>
     <h1>@Model.Message</h1>
 </div>
+
 <section class="paper message-panel">
     <p>URLを確認するか、時間をおいてもう一度お試しください。</p>
     <p class="muted request-id">お問い合わせ番号：@Model.RequestId</p>

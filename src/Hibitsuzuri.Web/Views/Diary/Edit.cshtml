@@ -4,6 +4,7 @@
     ViewData["Title"] = Model.Day + " の編集";
     ViewData["Navigation"] = "home";
 }
+
 <form id="diary-editor" method="post" action="/api/diary/@Model.Book.Id/@Model.Day/save"
       data-owner="@User.FindFirstValue(ClaimTypes.NameIdentifier)" data-book="@Model.Book.Id" data-date="@Model.Day"
       data-return="@Model.Path" data-version="@Model.Entry?.Version" data-new="@(Model.Entry is null ? "true" : "false")">
@@ -18,14 +19,17 @@
             <button id="save-entry" class="button primary" type="submit" disabled>保存する</button>
         </div>
     </header>
+
     <noscript><p class="notice">日記の編集にはJavaScriptが必要です。</p></noscript>
     <p id="editor-notice" class="notice" role="status" hidden></p>
+
     <section id="draft-candidates" class="settings-panel" hidden>
         <h2>このブラウザの下書き</h2>
         <p>保存日時を確認して復元してください。別の画面の入力と混ざらないよう、復元内容は新しい下書きとして扱います。</p>
         <div id="draft-list"></div>
         <button id="skip-drafts" type="button">候補を閉じて編集する</button>
     </section>
+
     <section id="conflict" class="settings-panel" hidden>
         <h2>最新版との比較</h2>
         <p>入力中の本文は下の編集欄に残っています。自動では統合しません。</p>
@@ -37,11 +41,13 @@
         </div>
         <p class="muted">採用後も「保存する」を押すまで日記は変わりません。</p>
     </section>
+
     <section class="paper editor-paper">
         <div class="editor-tabs" role="group" aria-label="編集とプレビュー">
             <button type="button" data-editor-tab="edit" aria-pressed="true">編集</button>
             <button type="button" data-editor-tab="preview" aria-pressed="false">プレビュー</button>
         </div>
+
         <div class="editor-toolbar" role="group" aria-label="Markdown書式">
             <button type="button" data-format="bold" aria-label="太字"><b>B</b></button>
             <button type="button" data-format="italic" aria-label="斜体"><i>I</i></button>
@@ -49,6 +55,7 @@
             <button type="button" data-format="list">箇条書き</button>
             <button type="button" data-format="link">リンク</button>
         </div>
+
         <div class="editor-grid" data-active-pane="edit">
             <div class="editor-pane input-pane">
                 <label class="pane-label" for="diary-content">Markdown</label>
@@ -61,11 +68,13 @@
                 <div id="diary-preview" class="prose">@Html.Raw(Model.Html)</div>
             </section>
         </div>
+
         <div class="editor-status">
             <span id="draft-status" role="status">下書きはこのブラウザに保存されます。</span>
             <span id="word-count"></span>
         </div>
     </section>
+
     <details id="history" class="settings-panel">
         <summary>編集履歴（過去 @Model.Revisions.Count 版）</summary>
         <p class="muted">読み込み後に確認し、明示保存すると現行版に反映されます。</p>
@@ -79,7 +88,9 @@
 @revision.Content</textarea>
         }
     </details>
+
     <textarea id="book-template" hidden>
 @Model.Book.Template</textarea>
 </form>
+
 <script src="~/js/diary-editor.js" asp-append-version="true" type="module"></script>

@@ -95,10 +95,13 @@ public sealed class NotebookTests
         await AuthClient.RegisterAsync(client);
         var first = await DiaryClient.CreateBookAsync(client, "生活");
         var second = await DiaryClient.CreateBookAsync(client, "仕事");
+
         using var selected = await client.GetAsync($"/diary/{second}/2020-05-10");
         using var home = await client.GetAsync("/");
+
         using var login = await AuthClient.LoginAsync(otherBrowser);
         using var otherHome = await otherBrowser.GetAsync("/");
+
         using var logout = await AuthClient.PostAsync(client, "/auth/logout");
         await AuthClient.RegisterAsync(client, "member", false);
         using var memberHome = await client.GetAsync("/");

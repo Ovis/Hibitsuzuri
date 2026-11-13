@@ -43,11 +43,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         builder.Entity<Notebook>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique();
         builder.Entity<Notebook>().Property(x => x.Version).IsConcurrencyToken();
+
         builder.Entity<DiaryEntry>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<DiaryEntry>().HasIndex(x => new { x.NotebookId, x.EntryDate }).IsUnique();
         builder.Entity<DiaryEntry>().Property(x => x.Version).IsConcurrencyToken();
+
         builder.Entity<DiaryRevision>().HasOne<DiaryEntry>().WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<DiaryRevision>().HasIndex(x => new { x.EntryId, x.Sequence });
+
         builder.Entity<DiarySaveOperation>().HasKey(x => new { x.NotebookId, x.Id });
         builder.Entity<DiarySaveOperation>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
 

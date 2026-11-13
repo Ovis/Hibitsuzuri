@@ -47,6 +47,7 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     protected override IHost CreateHost(IHostBuilder builder)
     {
         builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(Settings));
+
         return base.CreateHost(builder);
     }
 
@@ -58,6 +59,7 @@ public sealed class TestApplication : WebApplicationFactory<Program>
         {
             ["Storage:Directory"] = DataPath
         }));
+
         builder.ConfigureServices(services =>
         {
             services.AddControllers().AddApplicationPart(typeof(ProbeController).Assembly);
@@ -80,6 +82,7 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+
         var testRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "Hibitsuzuri.Tests")) + Path.DirectorySeparatorChar;
         if (!PreserveData && Directory.Exists(DataPath)
             && Path.GetFullPath(DataPath).StartsWith(testRoot, StringComparison.OrdinalIgnoreCase))
