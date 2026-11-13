@@ -239,6 +239,124 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("SecurityAuditLogs");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryEntry", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotebookId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotebookId", "EntryDate")
+                        .IsUnique();
+
+                    b.ToTable("DiaryEntries");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryRevision", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntryId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryId", "Sequence");
+
+                    b.ToTable("DiaryRevisions");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiarySaveOperation", b =>
+                {
+                    b.Property<string>("NotebookId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResultVersion")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NotebookId", "Id");
+
+                    b.ToTable("DiarySaveOperations");
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.Notebook", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Template")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Notebooks");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -407,6 +525,42 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                 });
 
             modelBuilder.Entity("Hibitsuzuri.Web.Auth.RecoveryCode", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryEntry", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiaryRevision", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.DiaryEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.DiarySaveOperation", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Diary.Notebook", null)
+                        .WithMany()
+                        .HasForeignKey("NotebookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Diary.Notebook", b =>
                 {
                     b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
                         .WithMany()

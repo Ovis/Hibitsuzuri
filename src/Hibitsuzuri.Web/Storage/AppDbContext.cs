@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Diary;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,18 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>所有者別の日記帳とテンプレート</summary>
+    public DbSet<Notebook> Notebooks => Set<Notebook>();
+
+    /// <summary>現在の本文と日記単位のゴミ箱</summary>
+    public DbSet<DiaryEntry> DiaryEntries => Set<DiaryEntry>();
+
+    /// <summary>日記ごとに保持する過去5版</summary>
+    public DbSet<DiaryRevision> DiaryRevisions => Set<DiaryRevision>();
+
+    /// <summary>保存要求の二重適用を防ぐ確定記録</summary>
+    public DbSet<DiarySaveOperation> DiarySaveOperations => Set<DiarySaveOperation>();
+
     /// <summary>登録受付と初回セットアップ状態</summary>
     public DbSet<AccountPolicy> AccountPolicies => Set<AccountPolicy>();
 
@@ -26,6 +39,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Notebook>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique();
+        builder.Entity<Notebook>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<DiaryEntry>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<DiaryEntry>().HasIndex(x => new { x.NotebookId, x.EntryDate }).IsUnique();
+        builder.Entity<DiaryEntry>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<DiaryRevision>().HasOne<DiaryEntry>().WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<DiaryRevision>().HasIndex(x => new { x.EntryId, x.Sequence });
+        builder.Entity<DiarySaveOperation>().HasKey(x => new { x.NotebookId, x.Id });
+        builder.Entity<DiarySaveOperation>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<AccountPolicy>().HasData(new AccountPolicy());
         builder.Entity<RecoveryCode>().HasKey(x => x.Hash);
