@@ -482,7 +482,7 @@ svg {
 
 .reading-aside .entry-dot {
     position: absolute;
-    bottom: -2px;
+    bottom: 3px;
     font-size: 7px;
     color: inherit;
 }
