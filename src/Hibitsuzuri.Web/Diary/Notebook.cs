@@ -3,6 +3,18 @@ namespace Hibitsuzuri.Web.Diary;
 /// <summary>所有者ごとに日記と新規作成時のひな形をまとめる</summary>
 public sealed class Notebook
 {
+    /// <summary>普段の選択肢から外す。明示的に開けば編集できる</summary>
+    public bool Archived
+    {
+        get; set;
+    }
+
+    /// <summary>配下の記録を保持したまま通常の閲覧・通知から外した時刻</summary>
+    public long? DeletedAt
+    {
+        get; set;
+    }
+
     /// <summary>停止から再開した時点より過去の通知を送らない境界</summary>
     public long NotificationAfter
     {

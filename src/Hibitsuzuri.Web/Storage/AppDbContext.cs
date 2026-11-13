@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Backups;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
@@ -12,6 +13,8 @@ namespace Hibitsuzuri.Web.Storage;
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
+    /// <summary>復元の確認待ちと二重適用を防ぐ確定記録</summary>
+    public DbSet<RestoreTransfer> RestoreTransfers => Set<RestoreTransfer>();
     /// <summary>ブラウザ単位のPush購読と通知表示設定</summary>
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
 
@@ -89,6 +92,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<RestoreTransfer>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
         builder.Entity<PushDevice>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<PushDevice>().HasIndex(x => new { x.UserId, x.BrowserId }).IsUnique();
         builder.Entity<PushDevice>().HasIndex(x => x.EndpointHash);
@@ -136,7 +141,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         builder.Entity<AnniversaryNotebook>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Notebook>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
-        builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique();
+        // 削除済みを扱う管理・復元処理だけが明示的にフィルターを解除する。
+        builder.Entity<Notebook>().HasQueryFilter(x => x.DeletedAt == null);
+        builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique().HasFilter("DeletedAt IS NULL");
         builder.Entity<Notebook>().Property(x => x.Version).IsConcurrencyToken();
 
         builder.Entity<DiaryEntry>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);

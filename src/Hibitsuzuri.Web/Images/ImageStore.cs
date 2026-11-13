@@ -25,7 +25,16 @@ public sealed class ImageStore(AppDbContext database, DataDirectory data, DiaryM
         var ids = await database.DiaryImageReferences.Where(x => owner == null
             || database.DiaryImages.Any(i => i.Id == x.ImageId && i.UserId == owner)).Select(x => x.ImageId).Distinct().ToListAsync();
 
-        return ids.ToHashSet(StringComparer.Ordinal);
+        var saved = ids.ToHashSet(StringComparer.Ordinal);
+        var templates = await database.Notebooks.IgnoreQueryFilters().Where(x => owner == null || x.UserId == owner)
+            .Select(x => new { x.UserId, x.Template }).ToListAsync();
+        foreach (var group in templates.GroupBy(x => x.UserId))
+        {
+            var candidates = group.SelectMany(x => markdown.ImageIds(x.Template)).Distinct().ToArray();
+            saved.UnionWith(await database.DiaryImages.Where(x => x.UserId == group.Key && candidates.Contains(x.Id)).Select(x => x.Id).ToListAsync());
+        }
+
+        return saved;
     }
 
     /// <summary>確定した現行版・過去5版と同じトランザクションで保持集合を更新する</summary>
@@ -49,9 +58,12 @@ public sealed class ImageStore(AppDbContext database, DataDirectory data, DiaryM
     {
         var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
         var wanted = ids?.ToArray();
+        var templates = await database.Notebooks.IgnoreQueryFilters().Where(x => x.UserId == owner && x.Template != "")
+            .Select(x => x.Template).ToListAsync();
+        var templateImages = templates.SelectMany(markdown.ImageIds).ToHashSet(StringComparer.Ordinal);
 
         return await database.DiaryImages.AsNoTracking().Where(x => x.UserId == owner && (wanted == null || wanted.Contains(x.Id))
-            && (database.DiaryImageReferences.Any(r => r.ImageId == x.Id)
+            && (database.DiaryImageReferences.Any(r => r.ImageId == x.Id) || templateImages.Contains(x.Id)
                 || database.ImageDraftLeases.Any(l => l.ImageId == x.Id && l.ExpiresAt > now))).ToListAsync();
     }
 

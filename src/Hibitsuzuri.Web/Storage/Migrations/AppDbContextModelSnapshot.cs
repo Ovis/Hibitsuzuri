@@ -242,6 +242,31 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("SecurityAuditLogs");
                 });
 
+            modelBuilder.Entity("Hibitsuzuri.Web.Backups.RestoreTransfer", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Completed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Ready")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RestoreTransfers");
+                });
+
             modelBuilder.Entity("Hibitsuzuri.Web.Calendar.Anniversary", b =>
                 {
                     b.Property<string>("Id")
@@ -436,6 +461,12 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Archived")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -465,7 +496,8 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("DeletedAt IS NULL");
 
                     b.ToTable("Notebooks");
                 });
@@ -1052,6 +1084,15 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                 });
 
             modelBuilder.Entity("Hibitsuzuri.Web.Auth.RecoveryCode", b =>
+                {
+                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hibitsuzuri.Web.Backups.RestoreTransfer", b =>
                 {
                     b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
                         .WithMany()

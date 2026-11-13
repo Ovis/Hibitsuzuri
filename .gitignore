@@ -429,6 +429,8 @@ FodyWeavers.xsd
 
 # Local application data and configuration
 **/data/
+!src/Hibitsuzuri.Web/Views/Data/
+!src/Hibitsuzuri.Web/Backups/
 .env
 .env.*
 !.env.example

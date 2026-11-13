@@ -2,6 +2,8 @@
 @{
     ViewData["Title"] = "日記帳";
     ViewData["Navigation"] = "books";
+    var anniversaryCounts = ViewData["PurgeAnniversaryCounts"] as IReadOnlyDictionary<string, int> ?? new Dictionary<string, int>();
+    var visibleBooks = Model.Where(x => x.DeletedAt is null).ToList();
 }
 
 <header class="page-header">
@@ -16,21 +18,61 @@
         <p>最初の日記帳を作成してください。</p>
     }
 
-    @foreach (var book in Model)
+    @foreach (var book in visibleBooks)
     {
         <div class="book-row">
             <a href="/diary/@book.Id">@book.Name</a>
+            @if (book.Archived)
+            {
+                <span class="muted">アーカイブ</span>
+            }
             <div class="actions">
                 <a href="/books/@book.Id">設定</a>
                 <form method="post" action="/books/@book.Id/move">
                     @Html.AntiForgeryToken()
-                    <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == Model[0])">↑</button>
-                    <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == Model[^1])">↓</button>
+                    <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == visibleBooks[0])">↑</button>
+                    <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == visibleBooks[^1])">↓</button>
                 </form>
             </div>
         </div>
     }
 </section>
+
+<details class="paper settings-panel spacer">
+    <summary>日記帳のゴミ箱（@Model.Count(x => x.DeletedAt is not null)）</summary>
+    <p>削除した日記帳の記録は自動では消えません。復元時は削除前のアーカイブ・タスク停止状態を引き継ぎます。</p>
+    @foreach (var book in Model.Where(x => x.DeletedAt is not null))
+    {
+        <section class="settings-panel">
+            <h2>@book.Name</h2>
+            <p>削除前：@(book.Archived ? "アーカイブ" : "使用中") · タスク@(book.TasksPausedOn is null ? "継続" : "停止")</p>
+            <form method="post" action="/books/@book.Id/state" class="account-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="version" value="@book.Version" />
+                <input type="hidden" name="operation" value="restore" />
+                <label for="restore-@book.Id">復元後の日記帳名</label>
+                <input id="restore-@book.Id" name="name" value="@book.Name" required maxlength="200" />
+                <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> この日記帳を復元する</label>
+                <button class="button" type="submit">復元する</button>
+            </form>
+            <details>
+                <summary>完全削除</summary>
+                <p>日記・履歴・タスク・この日記帳だけに表示する記念日を完全削除します。元に戻せません。</p>
+                <p>同時に削除する専用の記念日：@anniversaryCounts.GetValueOrDefault(book.Id) 件</p>
+                <form method="post" action="/books/@book.Id/state" class="account-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="version" value="@book.Version" />
+                    <input type="hidden" name="operation" value="purge" />
+                    <input type="hidden" name="anniversaryCount" value="@anniversaryCounts.GetValueOrDefault(book.Id)" />
+                    <label for="purge-@book.Id">確認のため「@book.Name」を入力</label>
+                    <input id="purge-@book.Id" name="name" required autocomplete="off" />
+                    <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 関連する記録も完全削除する</label>
+                    <button class="button danger" type="submit">完全削除する</button>
+                </form>
+            </details>
+        </section>
+    }
+</details>
 
 <section class="settings-panel">
     <h2>日記帳を作成</h2>

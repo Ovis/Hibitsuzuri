@@ -31,7 +31,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
     public async Task<IActionResult> Home()
     {
         var books = await Books().ToListAsync();
-        var selected = books.FirstOrDefault(x => x.Id == Request.Cookies[SelectionCookie]) ?? books.FirstOrDefault();
+        var selected = books.FirstOrDefault(x => !x.Archived && x.Id == Request.Cookies[SelectionCookie]) ?? books.FirstOrDefault(x => !x.Archived);
 
         return Redirect(selected is null ? "/books" : $"/diary/{selected.Id}/{Day(Today)}");
     }
@@ -322,7 +322,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         return new DiaryPage
         {
             Book = book,
-            Books = books,
+            Books = books.Where(x => !x.Archived || x.Id == bookId).ToList(),
             Date = day,
             Today = Today,
             Entry = entry,

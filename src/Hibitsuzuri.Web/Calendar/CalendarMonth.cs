@@ -60,7 +60,7 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock, Hi
     public async Task<CalendarMonth?> ReadAsync(string owner, string? bookId, DateOnly selected)
     {
         var books = await database.Notebooks.Where(x => x.UserId == owner).OrderBy(x => x.Position).ThenBy(x => x.Id).ToListAsync();
-        var book = bookId is null ? books.FirstOrDefault() : books.FirstOrDefault(x => x.Id == bookId);
+        var book = bookId is null ? books.FirstOrDefault(x => !x.Archived) : books.FirstOrDefault(x => x.Id == bookId);
         if (book is null)
         {
             return null;
@@ -82,7 +82,7 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock, Hi
         return new CalendarMonth
         {
             Book = book,
-            Books = books,
+            Books = books.Where(x => !x.Archived || x.Id == book.Id).ToList(),
             First = first,
             Selected = selected,
             Today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime),

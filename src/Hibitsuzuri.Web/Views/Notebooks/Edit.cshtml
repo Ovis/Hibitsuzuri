@@ -37,3 +37,31 @@
         <button type="submit">@(Model.TasksPausedOn is null ? "タスクを停止する" : "タスクを再開する")</button>
     </form>
 </section>
+
+<section class="paper settings-panel spacer">
+    <h2>@(Model.Archived ? "アーカイブを解除" : "日記帳をアーカイブ")</h2>
+    <p>アーカイブした日記帳は通常の選択肢から外れます。日記帳一覧から開いて閲覧・編集できます。</p>
+    <form method="post" action="/books/@Model.Id/state" class="account-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="version" value="@Model.Version" />
+        <input type="hidden" name="operation" value="@(Model.Archived ? "unarchive" : "archive")" />
+        @if (!Model.Archived)
+        {
+            <label class="check-label"><input type="checkbox" name="pauseTasks" value="true" checked /> タスクも停止する</label>
+        }
+        <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> この日記帳の状態を変更する</label>
+        <button class="button" type="submit">@(Model.Archived ? "アーカイブを解除する" : "アーカイブする")</button>
+    </form>
+</section>
+
+<details class="paper settings-panel spacer">
+    <summary>日記帳を削除する</summary>
+    <p>「@Model.Name」とその記録をゴミ箱へ移します。タスク・通知も停止します。日記帳一覧のゴミ箱から復元できます。</p>
+    <form method="post" action="/books/@Model.Id/state" class="account-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="version" value="@Model.Version" />
+        <input type="hidden" name="operation" value="delete" />
+        <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 日記帳とその記録をゴミ箱へ移す</label>
+        <button class="button danger" type="submit">日記帳を削除する</button>
+    </form>
+</details>
