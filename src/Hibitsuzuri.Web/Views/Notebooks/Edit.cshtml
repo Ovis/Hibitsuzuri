@@ -1,0 +1,23 @@
+@model Hibitsuzuri.Web.Diary.Notebook
+@{
+    ViewData["Title"] = "日記帳の設定";
+    ViewData["Navigation"] = "books";
+}
+<header class="page-header">
+    <h1>日記帳の設定</h1>
+</header>
+<form class="account-form paper" method="post" action="/books/@Model.Id">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="notice" role="alert"></div>
+    <input type="hidden" name="version" value="@Model.Version" />
+    <label for="name">日記帳名</label>
+    <input id="name" name="name" value="@Model.Name" required maxlength="200" />
+    <label for="template">新規日記のテンプレート（Markdown）</label>
+    <p class="muted">100,000文字以内。保存済みの日記や下書きには適用しません。</p>
+    <textarea id="template" name="template" rows="14">
+@Model.Template</textarea>
+    <div class="actions">
+        <button class="button primary" type="submit">保存する</button>
+        <a href="/books">戻る</a>
+    </div>
+</form>

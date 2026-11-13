@@ -1,0 +1,39 @@
+@model IReadOnlyList<Hibitsuzuri.Web.Diary.Notebook>
+@{
+    ViewData["Title"] = "日記帳";
+    ViewData["Navigation"] = "books";
+}
+<header class="page-header">
+    <h1>日記帳</h1>
+    <p class="muted">並び順はほかの端末にも反映されます。</p>
+</header>
+<div asp-validation-summary="All" class="notice" role="alert"></div>
+<section class="paper">
+    @if (Model.Count == 0)
+    {
+        <p>最初の日記帳を作成してください。</p>
+    }
+    @foreach (var book in Model)
+    {
+        <div class="book-row">
+            <a href="/diary/@book.Id">@book.Name</a>
+            <div class="actions">
+                <a href="/books/@book.Id">設定</a>
+                <form method="post" action="/books/@book.Id/move">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == Model[0])">↑</button>
+                    <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == Model[^1])">↓</button>
+                </form>
+            </div>
+        </div>
+    }
+</section>
+<section class="settings-panel">
+    <h2>日記帳を作成</h2>
+    <form class="account-form" method="post" action="/books">
+        @Html.AntiForgeryToken()
+        <label for="name">日記帳名</label>
+        <input id="name" name="name" required maxlength="200" autocomplete="off" />
+        <button class="button primary" type="submit">作成する</button>
+    </form>
+</section>

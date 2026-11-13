@@ -427,6 +427,222 @@ select:disabled {
     top: 12px;
 }
 
+.page-header {
+    margin-bottom: 24px;
+}
+
+.book-row, .diary-heading, .day-navigation, .editor-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.book-row {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+    overflow-wrap: anywhere;
+}
+
+.book-row:last-child {
+    border-bottom: 0;
+}
+
+.book-row .actions, .diary-heading .actions {
+    margin: 0;
+}
+
+.book-row button, .day-navigation button, #diary-editor button {
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+}
+
+#diary-editor button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+
+#diary-editor button:disabled, .book-row button:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+.book-picker {
+    margin: 16px 0 24px;
+}
+
+.book-picker nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px 0;
+}
+
+.book-picker a[aria-current="page"] {
+    font-weight: bold;
+}
+
+.day-navigation form {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+}
+
+input[type="date"], textarea {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    color: var(--ink);
+    background: var(--paper);
+    font: inherit;
+}
+
+textarea {
+    width: 100%;
+    resize: vertical;
+    line-height: 1.8;
+}
+
+.account-form.paper, .empty-diary, article.prose {
+    padding: 32px;
+}
+
+.empty-diary {
+    text-align: center;
+    padding-block: 64px;
+}
+
+.spacer {
+    margin-top: 24px;
+}
+
+.editor-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.editor-pane {
+    min-width: 0;
+    padding: 20px;
+}
+
+.preview-pane {
+    border-left: 1px solid var(--line);
+}
+
+.pane-label {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+#diary-content {
+    min-height: 450px;
+    border: 0;
+    padding: 0;
+    font-family: Consolas, "Yu Gothic", monospace;
+}
+
+.editor-toolbar, .editor-tabs, .editor-status {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.editor-tabs {
+    display: none;
+}
+
+.editor-status {
+    border-top: 1px solid var(--line);
+    border-bottom: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.prose {
+    overflow-wrap: anywhere;
+    line-height: 1.9;
+}
+
+.prose h1 {
+    font-size: 26px;
+}
+
+.prose pre {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 16px;
+    background: var(--soft);
+    line-height: 1.6;
+}
+
+.prose table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.prose th, .prose td {
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+}
+
+.prose blockquote {
+    margin-left: 0;
+    padding-left: 16px;
+    border-left: 3px solid var(--control-border);
+    color: var(--muted);
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+@media (max-width: 1000px) {
+    .editor-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .editor-tabs {
+        display: flex;
+        gap: 12px;
+    }
+
+    #diary-editor .editor-tabs [aria-pressed="true"] {
+        color: var(--on-accent);
+        background: var(--accent);
+    }
+
+    .editor-grid[data-active-pane="edit"] .preview-pane,
+    .editor-grid[data-active-pane="preview"] .input-pane {
+        display: none;
+    }
+
+    .preview-pane {
+        border-left: 0;
+        min-height: 400px;
+    }
+}
+
 @media (max-width: 720px) {
     .shell {
         display: block;

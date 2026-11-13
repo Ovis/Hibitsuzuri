@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.DataProtection;
@@ -28,6 +29,7 @@ public partial class Program
         builder.Services.AddDbContext<AppDbContext>((services, options) =>
             options.UseSqlite(services.GetRequiredService<DataDirectory>().ConnectionString));
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<DiaryMarkdown>();
         builder.AddAccountAuthentication(site);
 
         builder.Services.AddDataProtection().SetApplicationName("Hibitsuzuri");

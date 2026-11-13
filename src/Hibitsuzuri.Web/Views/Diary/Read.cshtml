@@ -1,0 +1,79 @@
+@model Hibitsuzuri.Web.Diary.DiaryPage
+@{
+    ViewData["Title"] = Model.Day;
+    ViewData["Navigation"] = "home";
+}
+<header class="page-header diary-heading">
+    <div>
+        <p class="eyebrow">@Model.Book.Name</p>
+        <h1>@Model.Date.ToString("yyyy年M月d日（ddd）")</h1>
+    </div>
+    <a href="/diary/@Model.Book.Id/trash">ゴミ箱</a>
+</header>
+<nav class="day-navigation" aria-label="日付の移動">
+    @if (Model.Date > DateOnly.MinValue)
+    {
+        <a href="/diary/@Model.Book.Id/@Model.Date.AddDays(-1).ToString("yyyy-MM-dd")">← 前日</a>
+    }
+    <form method="get" action="/diary/@Model.Book.Id" data-day-picker>
+        <label class="visually-hidden" for="selected-day">表示する日付</label>
+        <input type="date" id="selected-day" value="@Model.Day" required />
+        <button type="submit">移動</button>
+    </form>
+    @if (Model.Date < DateOnly.MaxValue)
+    {
+        <a href="/diary/@Model.Book.Id/@Model.Date.AddDays(1).ToString("yyyy-MM-dd")">翌日 →</a>
+    }
+</nav>
+<details class="book-picker">
+    <summary>日記帳を切り替える</summary>
+    <nav aria-label="日記帳">
+        @foreach (var book in Model.Books)
+        {
+            <a href="/diary/@book.Id/@Model.Day" aria-current="@(book.Id == Model.Book.Id ? "page" : null)">@book.Name</a>
+        }
+    </nav>
+</details>
+@if (Model.Entry?.DeletedAt is not null)
+{
+    <section class="paper empty-diary">
+        <h2>この日の日記はゴミ箱にあります</h2>
+        <p>復元すると編集できます。</p>
+        <form method="post" action="@Model.Path/trash">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="version" value="@Model.Entry.Version" />
+            <button class="button" name="action" value="restore">復元する</button>
+        </form>
+    </section>
+}
+else if (Model.Entry is not null)
+{
+    <div class="diary-heading">
+        <p class="muted">最終更新 @DateTimeOffset.FromUnixTimeMilliseconds(Model.Entry.UpdatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm")</p>
+        <a class="button primary" href="@Model.Path/edit">編集する</a>
+    </div>
+    <article class="paper prose">@Html.Raw(Model.Html)</article>
+    <div class="diary-heading spacer">
+        <a href="@Model.Path/edit#history">編集履歴（過去 @Model.Revisions.Count 版）</a>
+        <form method="post" action="@Model.Path/trash" data-confirm="この日の日記をゴミ箱に移しますか？">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="version" value="@Model.Entry.Version" />
+            <button name="action" value="delete">ゴミ箱に移す</button>
+        </form>
+    </div>
+}
+else
+{
+    <section class="paper empty-diary">
+        <h2>この日の日記はありません</h2>
+        @if (Model.Date <= Model.Today)
+        {
+            <a class="button primary" href="@Model.Path/edit">日記を書く</a>
+        }
+        else
+        {
+            <p class="muted">未来の日付には日記を作成できません。</p>
+        }
+    </section>
+}
+<script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>
