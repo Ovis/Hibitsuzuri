@@ -4,7 +4,7 @@
     var preferenceKey = preferenceOwner is null
         ? "hibitsuzuri.appearance.anonymous"
         : $"hibitsuzuri.appearance.user.{preferenceOwner}";
-    var currentPage = ViewData["Navigation"] as string;
+    var authenticated = User.Identity?.IsAuthenticated == true;
 }
 
 <!DOCTYPE html>
@@ -19,49 +19,32 @@
     <link rel="icon" href="~/images/book.svg" type="image/svg+xml" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <script src="~/js/appearance.js" asp-append-version="true"></script>
+    <script src="~/js/navigation.js" asp-append-version="true" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main">本文へ移動</a>
-    <div class="shell">
-        <header class="sidebar">
-            <div class="brand-block">
-                <a class="brand" href="/" aria-label="Hibitsuzuri ホーム">
-                    <svg class="brand-mark" viewBox="0 0 32 36" aria-hidden="true">
-                        <path d="M5 4h18a3 3 0 0 1 3 3v25H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" />
-                        <path d="M9 4v23M5 28h21M14 12h7M14 17h5" />
-                    </svg>
-                    <span class="brand-name">Hibitsuzuri</span>
-                </a>
-                <p class="brand-sub">日々を、綴る。</p>
-            </div>
-
-            <nav class="navigation" aria-label="メインメニュー">
-                @if (User.Identity?.IsAuthenticated == true)
-                {
-                    <a href="/" aria-current="@(currentPage == "home" ? "page" : null)">ホーム</a>
-                    <a href="/books" aria-current="@(currentPage == "books" ? "page" : null)">日記帳</a>
-                    <a href="/calendar" aria-current="@(currentPage == "calendar" ? "page" : null)">カレンダー</a>
-                    <a href="/tasks" aria-current="@(currentPage == "tasks" ? "page" : null)">タスク</a>
-                    <a href="/search" aria-current="@(currentPage == "search" ? "page" : null)">検索</a>
-                    <a href="/settings/appearance" aria-current="@(currentPage == "appearance" ? "page" : null)">表示設定</a>
-                    <a href="/settings/notifications" aria-current="@(currentPage == "notifications" ? "page" : null)">通知・アプリ</a>
-                    <a href="/data" aria-current="@(currentPage == "data" ? "page" : null)">データ管理</a>
-                    <a href="/account" aria-current="@(currentPage == "account" ? "page" : null)">アカウント</a>
-                    <form method="post" action="/auth/logout">
-                        @Html.AntiForgeryToken()
-                        <button class="nav-button" type="submit">ログアウト</button>
-                    </form>
-                }
-                else
-                {
-                    <a href="/auth/login">ログイン</a>
-                }
-            </nav>
-        </header>
-
-        <main id="main" class="main" tabindex="-1">
-            <div class="content">@RenderBody()</div>
-        </main>
+    <div class="@(authenticated ? "shell" : "auth-shell")">
+        @if (authenticated)
+        {
+            @await Component.InvokeAsync("Navigation")
+        }
+        else
+        {
+            <aside class="auth-art">
+                <div><partial name="_Brand" /><p class="brand-sub">日々を、綴る。</p></div>
+                <div><h1>今日という一日を、<br />あなたの言葉で。</h1><p>小さな出来事も、忘れたくない気持ちも。<br />日々の記録を、あなたの手元に。</p></div>
+                <p>Hibitsuzuri — 日々を、綴る。</p>
+            </aside>
+        }
+        <div class="workspace">
+            @if (authenticated)
+            {
+                <header class="topbar"><div class="breadcrumb">@(ViewData["BookName"] ?? "Hibitsuzuri")<span>/</span>@ViewData["Title"]</div></header>
+            }
+            <main id="main" class="@(authenticated ? "main" : "auth-main")" tabindex="-1">
+                <div class="@(authenticated ? "content" : "auth-card")">@RenderBody()</div>
+            </main>
+        </div>
     </div>
     @if (User.Identity?.IsAuthenticated == true)
     {

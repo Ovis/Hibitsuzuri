@@ -2,26 +2,5 @@
     ViewData["Title"] = "通知・アプリ";
     ViewData["Navigation"] = "notifications";
 }
-<header class="page-header"><h1>通知・アプリ</h1><p class="muted">このブラウザの設定</p></header>
-<section class="panel" data-notification-settings>
-    <h2>タスクの通知</h2>
-    @Html.AntiForgeryToken()
-    <p data-push-status role="status">通知の状態を確認しています。</p>
-    <p>通知にはタスクのメモを含めません。タスク名も初期状態では表示しません。</p>
-    <label class="check-label"><input type="checkbox" data-push-name /> このブラウザの通知にタスク名を表示する</label>
-    <div class="actions">
-        <button type="button" class="button primary" data-push-enable disabled>通知を有効にする</button>
-        <button type="button" class="button" data-push-disable disabled>通知を停止する</button>
-        <button type="button" class="button" data-push-test disabled>テスト通知を送る</button>
-    </div>
-    <p class="muted">通知時刻はサーバーのタイムゾーン（<span data-push-zone></span>）を基準にします。ブラウザやOSの省電力・通知設定によって、届く時刻が遅れることがあります。</p>
-    <p class="muted">ログアウトするとこのブラウザへの通知も止まります。再ログイン後はここで有効にし直してください。再開前の通知は送りません。</p>
-</section>
-<section class="panel">
-    <h2>アプリとして使う</h2>
-    <p>ホーム画面やデスクトップから、専用のウィンドウで開けます。</p>
-    <button type="button" class="button" data-pwa-install hidden>アプリをインストール</button>
-    <p data-pwa-status>Chrome・Edgeのメニューから「アプリをインストール」または「ホーム画面に追加」を選べます。</p>
-    <p class="muted">日記の閲覧・編集にはサーバーへの接続が必要です。アプリの更新は、開いている画面をすべて閉じた後に反映されます。</p>
-</section>
-<script src="~/js/notifications.js" asp-append-version="true" defer></script>
+<header class="page-heading"><p class="eyebrow">SETTINGS</p><h1>通知・アプリ</h1><a href="/settings">設定に戻る</a></header>
+<partial name="_NotificationSettings" />

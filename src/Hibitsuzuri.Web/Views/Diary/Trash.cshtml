@@ -1,7 +1,8 @@
 @model Hibitsuzuri.Web.Diary.DiaryTrash
 @{
     ViewData["Title"] = "ゴミ箱";
-    ViewData["Navigation"] = "home";
+    ViewData["Navigation"] = "trash";
+    ViewData["BookName"] = Model.Book.Name;
 }
 
 <header class="page-header">

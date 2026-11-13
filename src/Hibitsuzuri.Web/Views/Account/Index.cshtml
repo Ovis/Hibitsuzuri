@@ -22,7 +22,7 @@
         <a class="button" href="/account/reauthenticate">本人確認</a>
     </div>
 
-    <h2>リカバリーコードの再生成</h2>
+    <h2 id="recovery-codes">リカバリーコードの再生成</h2>
     <p>古いコードはすべて無効になります。直近10分以内の本人確認が必要です。</p>
     <form method="post" action="/account/codes" class="account-form">
         @Html.AntiForgeryToken()

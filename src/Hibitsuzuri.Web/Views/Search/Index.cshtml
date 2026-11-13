@@ -5,10 +5,13 @@
     ViewData["Navigation"] = "search";
     string PageUrl(int page) => $"/search?keyword={Uri.EscapeDataString(Model.Keyword)}&bookId={Model.BookId}&start={Model.Start:yyyy-MM-dd}&end={Model.End:yyyy-MM-dd}&page={page}";
 }
-<header class="page-header"><p class="eyebrow">SEARCH</p><h1>日記を検索</h1></header>
-<form method="get" class="paper form-stack">
-    <label>検索語 <input name="keyword" value="@Model.Keyword" maxlength="200" required /></label>
-    <div class="day-navigation">
+<header class="page-heading"><p class="eyebrow">SEARCH</p><h1>検索</h1></header>
+<form method="get" class="paper form-stack search-panel">
+    <div class="search-box">
+        <input name="keyword" aria-label="検索キーワード" placeholder="日記の言葉を検索…" value="@Model.Keyword" maxlength="200" required />
+        <button class="primary" type="submit"><partial name="_Icon" model='"search"' />検索</button>
+    </div>
+    <div class="search-filters">
         <label>開始日 <input type="date" name="start" value="@Model.Start?.ToString("yyyy-MM-dd")" /></label>
         <label>終了日 <input type="date" name="end" value="@Model.End?.ToString("yyyy-MM-dd")" /></label>
         <label>日記帳
@@ -21,9 +24,12 @@
             </select>
         </label>
     </div>
-    <button class="primary" type="submit">検索</button>
     <p class="muted">表示される本文の部分一致で検索します。英数字の全角・半角、大文字・小文字は区別しません。</p>
 </form>
+@if (Model.Keyword.Length == 0)
+{
+    <p class="muted spacer">例えば「銀杏」「コーヒー」「旅」。短い言葉からも探せます。</p>
+}
 @if (Model.Error is not null)
 {
     <p class="notice" role="alert">@Model.Error</p>

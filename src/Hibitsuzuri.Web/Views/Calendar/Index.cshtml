@@ -2,34 +2,29 @@
 @{
     ViewData["Title"] = "カレンダー";
     ViewData["Navigation"] = "calendar";
+    ViewData["BookName"] = Model.Book.Name;
 }
 <header class="page-header diary-heading">
     <div><p class="eyebrow">CALENDAR</p><h1>カレンダー</h1></div>
     <a href="/anniversaries">記念日を管理</a>
 </header>
-<form method="get" class="day-navigation">
-    <label>日記帳
-        <select name="bookId">
-            @foreach (var book in Model.Books)
-            {
-                <option value="@book.Id" selected="@(book.Id == Model.Book.Id)">@book.Name</option>
-            }
-        </select>
-    </label>
-    <label>表示月 <input type="month" name="month" value="@Model.First.ToString("yyyy-MM")" required /></label>
-    <button type="submit">表示</button>
-</form>
 <section class="paper calendar-month">
     <nav class="day-navigation" aria-label="月の移動">
         @if (Model.First > DateOnly.MinValue)
         {
-            <a href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(-1).ToString("yyyy-MM")">← 前月</a>
+            <a class="button quiet" aria-label="前月" href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(-1).ToString("yyyy-MM")"><partial name="_Icon" model='"left"' /></a>
         }
         <h2>@Model.First.ToString("yyyy年M月")</h2>
         @if (Model.First.Year < 9999 || Model.First.Month < 12)
         {
-            <a href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(1).ToString("yyyy-MM")">翌月 →</a>
+            <a class="button quiet" aria-label="翌月" href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(1).ToString("yyyy-MM")"><partial name="_Icon" model='"right"' /></a>
         }
     </nav>
     <partial name="_CalendarGrid" model="Model" />
+    <form method="get" class="calendar-jump">
+        <input type="hidden" name="bookId" value="@Model.Book.Id" />
+        <label for="calendar-month">表示月</label>
+        <input id="calendar-month" type="month" name="month" value="@Model.First.ToString("yyyy-MM")" required />
+        <button type="submit">移動</button>
+    </form>
 </section>

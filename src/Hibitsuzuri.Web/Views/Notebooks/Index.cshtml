@@ -6,9 +6,9 @@
     var visibleBooks = Model.Where(x => x.DeletedAt is null).ToList();
 }
 
-<header class="page-header">
-    <h1>日記帳</h1>
-    <p class="muted">並び順はほかの端末にも反映されます。</p>
+<header class="page-heading diary-heading">
+    <div><p class="eyebrow">NOTEBOOKS</p><h1>日記帳</h1></div>
+    <button class="primary" type="button" data-open-dialog="create-book">＋ 日記帳を作る</button>
 </header>
 
 <div asp-validation-summary="All" class="notice" role="alert"></div>
@@ -20,21 +20,26 @@
 
     @foreach (var book in visibleBooks)
     {
-        <div class="book-row">
-            <a href="/diary/@book.Id">@book.Name</a>
-            @if (book.Archived)
-            {
-                <span class="muted">アーカイブ</span>
-            }
-            <div class="actions">
-                <a href="/books/@book.Id">設定</a>
+        <article class="book-row notebook-row">
+            <div>
+                <h2><partial name="_Icon" model='"book"' />@book.Name</h2>
+                <p class="muted">@(book.Archived ? "アーカイブ" : "利用中")@(book.TasksPausedOn is null ? "" : "・タスク停止中")</p>
+                <p class="muted">テンプレート：@(string.IsNullOrEmpty(book.Template) ? "未設定" : "設定あり")</p>
+            </div>
+            <div class="actions book-actions">
+                <a class="button" href="/diary/@book.Id">開く</a>
+                <a class="button quiet" href="/books/@book.Id#name">名前変更</a>
+                <a class="button quiet" href="/books/@book.Id#template">テンプレート</a>
+                <a class="button quiet" href="/books/@book.Id#archive">@(book.Archived ? "アーカイブを解除" : "アーカイブ")</a>
+                <a class="button quiet danger" href="/books/@book.Id#delete-book">削除</a>
+                <a class="button quiet" href="/diary/@book.Id/trash">ゴミ箱</a>
                 <form method="post" action="/books/@book.Id/move">
                     @Html.AntiForgeryToken()
                     <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == visibleBooks[0])">↑</button>
                     <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == visibleBooks[^1])">↓</button>
                 </form>
             </div>
-        </div>
+        </article>
     }
 </section>
 
@@ -74,12 +79,13 @@
     }
 </details>
 
-<section class="settings-panel">
-    <h2>日記帳を作成</h2>
+<dialog id="create-book" class="form-dialog" aria-labelledby="create-book-title">
+    <div class="diary-heading"><h2 id="create-book-title">日記帳を作成</h2><button type="button" data-close-dialog aria-label="閉じる">×</button></div>
     <form class="account-form" method="post" action="/books">
         @Html.AntiForgeryToken()
         <label for="name">日記帳名</label>
         <input id="name" name="name" required maxlength="200" autocomplete="off" />
         <button class="button primary" type="submit">作成する</button>
     </form>
-</section>
+</dialog>
+<noscript><p class="notice">日記帳の作成にはJavaScriptを有効にしてください。</p></noscript>

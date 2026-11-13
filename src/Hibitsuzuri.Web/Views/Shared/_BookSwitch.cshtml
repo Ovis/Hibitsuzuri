@@ -1,0 +1,11 @@
+@model Hibitsuzuri.Web.Navigation.NavigationPage
+<select data-book-switch aria-label="日記帳を切り替える" disabled="@(Model.Books.Count == 0)">
+    @if (Model.Books.Count == 0)
+    {
+        <option>日記帳がありません</option>
+    }
+    @foreach (var book in Model.Books)
+    {
+        <option value="@Model.Links[book.Id]" selected="@(book.Id == Model.Selected?.Id)">@book.Name@(book.Archived ? "（アーカイブ）" : "")</option>
+    }
+</select>

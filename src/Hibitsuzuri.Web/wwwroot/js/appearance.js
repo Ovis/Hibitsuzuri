@@ -33,24 +33,30 @@
 
     function initializeControls() {
         const mode = document.querySelector('#appearance-mode');
-        const color = document.querySelector('#appearance-color');
+        const colorsField = document.querySelector('#light-colors');
+        const colorInputs = [...document.querySelectorAll('[name="appearance-color"]')];
         const status = document.querySelector('#appearance-status');
         const warningElement = document.querySelector('#appearance-warning');
-        if (!mode || !color || !status || !warningElement) {
+        if (!mode || !colorsField || !status || !warningElement) {
             return;
         }
 
         function updateControls() {
-            mode.value = preference.mode;
-            color.value = preference.color;
+            mode.checked = preference.mode === 'dark';
+            colorInputs.forEach(input => {
+                input.checked = input.value === preference.color;
+            });
             mode.disabled = false;
-            color.disabled = preference.mode === 'dark';
+            colorsField.disabled = preference.mode === 'dark';
             warningElement.textContent = warning;
             warningElement.hidden = warning === '';
         }
 
         function savePreference() {
-            preference = { mode: mode.value, color: color.value };
+            preference = {
+                mode: mode.checked ? 'dark' : 'light',
+                color: colorInputs.find(input => input.checked)?.value ?? preference.color
+            };
             applyPreference();
 
             try {
@@ -67,7 +73,7 @@
 
         updateControls();
         mode.addEventListener('change', savePreference);
-        color.addEventListener('change', savePreference);
+        colorInputs.forEach(input => input.addEventListener('change', savePreference));
     }
 
     // 初回描画より前に保存済みテーマを適用し、明暗の切替が一瞬見えることを防ぐ。

@@ -4,8 +4,7 @@
     const root = document.querySelector("[data-notification-settings]");
     const status = root.querySelector("[data-push-status]");
     const name = root.querySelector("[data-push-name]");
-    const enable = root.querySelector("[data-push-enable]");
-    const disable = root.querySelector("[data-push-disable]");
+    const toggle = root.querySelector("[data-push-toggle]");
     const test = root.querySelector("[data-push-test]");
     const pwa = window.HibitsuzuriPwa;
     const supported = window.isSecureContext && "PushManager" in window && "Notification" in window && "serviceWorker" in navigator;
@@ -27,8 +26,8 @@
     }
 
     function buttons() {
-        enable.disabled = busy || !current || !supported || Notification.permission === "denied";
-        disable.disabled = busy || !current?.device?.enabled;
+        toggle.disabled = busy || !current || (!current.device?.enabled && (!supported || Notification.permission === "denied"));
+        toggle.checked = Boolean(current?.device?.enabled);
         test.disabled = busy || !current?.device?.enabled || !supported || Notification.permission !== "granted";
         name.disabled = busy;
     }
@@ -69,7 +68,15 @@
         return Uint8Array.from(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")), character => character.charCodeAt(0));
     }
 
-    enable.addEventListener("click", () => {
+    toggle.addEventListener("change", () => {
+        if (!toggle.checked) {
+            act(async () => {
+                await request("/api/push/disable", {});
+                await pwa.bind(null);
+            });
+            return;
+        }
+
         // ブラウザの許可要求は利用者のクリックに直接つなぐ。
         const permission = Notification.requestPermission();
         act(async () => {
@@ -91,10 +98,6 @@
             await pwa.bind(binding);
         });
     });
-    disable.addEventListener("click", () => act(async () => {
-        await request("/api/push/disable", {});
-        await pwa.bind(null);
-    }));
     name.addEventListener("change", () => {
         if (current?.device) {
             act(async () => {

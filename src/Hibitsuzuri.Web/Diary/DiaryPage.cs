@@ -42,6 +42,9 @@ public sealed class DiaryPage
     /// <summary>新しい順に表示する復元候補</summary>
     public IReadOnlyList<DiaryRevision> Revisions { get; init; } = [];
 
+    /// <summary>振り返り欄に表示する、同じ月日の別年の記録</summary>
+    public IReadOnlyList<DiaryEntry> Memories { get; init; } = [];
+
     /// <summary>共通規則でレンダリングした本文</summary>
     public string Html { get; init; } = "";
 

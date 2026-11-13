@@ -23,7 +23,7 @@
 
     @foreach (var key in Model)
     {
-        <div class="credential-row">
+        <div id="key-@WebEncoders.Base64UrlEncode(key.CredentialId)" class="credential-row">
             <p>登録日：@key.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</p>
             <form method="post" action="/account/passkeys/rename" class="account-form">
                 @Html.AntiForgeryToken()

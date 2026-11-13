@@ -36,12 +36,17 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
         return Redirect(selected is null ? "/books" : $"/diary/{selected.Id}/{Day(Today)}");
     }
 
-    /// <summary>日記帳を開くときは今日を表示する</summary>
+    /// <summary>選んだ日記帳を記憶し、指定画面または今日の日記へ移動する</summary>
     [HttpGet("/diary/{bookId}")]
-    public async Task<IActionResult> Open(string bookId)
+    public async Task<IActionResult> Open(string bookId, string? returnUrl = null)
     {
-        return await Books().AnyAsync(x => x.Id == bookId)
-            ? Redirect($"/diary/{bookId}/{Day(Today)}") : NotFound();
+        if (!await Books().AnyAsync(x => x.Id == bookId))
+        {
+            return NotFound();
+        }
+
+        RememberBook(bookId);
+        return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl : $"/diary/{bookId}/{Day(Today)}");
     }
 
     /// <summary>未作成・ゴミ箱・未来日を空のレコードを作らず表示する</summary>
@@ -54,15 +59,7 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             return NotFound();
         }
 
-        Response.Cookies.Append(SelectionCookie, bookId, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
-            Path = "/",
-            MaxAge = TimeSpan.FromDays(365),
-            IsEssential = true
-        });
+        RememberBook(bookId);
 
         return View(page);
     }
@@ -327,9 +324,27 @@ public sealed class DiaryController(AppDbContext database, TimeProvider clock, D
             Today = Today,
             Entry = entry,
             Revisions = revisions,
+            Memories = await database.DiaryEntries.AsNoTracking()
+                .Where(x => x.NotebookId == bookId && x.DeletedAt == null && x.EntryDate != day
+                    && x.EntryDate.Month == day.Month && x.EntryDate.Day == day.Day)
+                .OrderByDescending(x => x.EntryDate).Take(2).ToListAsync(),
             Calendar = await calendar.ReadAsync(Owner, bookId, day),
             Html = entry is null ? "" : await images.RenderAsync(Owner, entry.Content)
         };
+    }
+
+    /// <summary>画面を移動しても、本人が選んだ日記帳をこのブラウザで保持する</summary>
+    private void RememberBook(string bookId)
+    {
+        Response.Cookies.Append(SelectionCookie, bookId, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+            MaxAge = TimeSpan.FromDays(365),
+            IsEssential = true
+        });
     }
 
     /// <summary>カルチャーに左右されない日付URL</summary>

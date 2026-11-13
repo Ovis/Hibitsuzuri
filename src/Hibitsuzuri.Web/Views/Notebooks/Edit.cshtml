@@ -27,7 +27,7 @@
     </div>
 </form>
 
-<section class="paper spacer">
+<section class="paper settings-panel spacer">
     <h2>タスクの停止</h2>
     <p>停止中は閲覧のみになります。再開時は停止期間に到来した未操作の繰り返しをスキップし、以前の未完了や操作済みの回は残します。</p>
     <form method="post" action="/tasks/pause/@Model.Id">
@@ -38,7 +38,7 @@
     </form>
 </section>
 
-<section class="paper settings-panel spacer">
+<section id="archive" class="paper settings-panel spacer">
     <h2>@(Model.Archived ? "アーカイブを解除" : "日記帳をアーカイブ")</h2>
     <p>アーカイブした日記帳は通常の選択肢から外れます。日記帳一覧から開いて閲覧・編集できます。</p>
     <form method="post" action="/books/@Model.Id/state" class="account-form">
@@ -54,7 +54,7 @@
     </form>
 </section>
 
-<details class="paper settings-panel spacer">
+<details id="delete-book" class="paper settings-panel spacer">
     <summary>日記帳を削除する</summary>
     <p>「@Model.Name」とその記録をゴミ箱へ移します。タスク・通知も停止します。日記帳一覧のゴミ箱から復元できます。</p>
     <form method="post" action="/books/@Model.Id/state" class="account-form">

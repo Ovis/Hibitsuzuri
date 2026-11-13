@@ -4,6 +4,7 @@
 @{
     ViewData["Title"] = Model.Day + " の編集";
     ViewData["Navigation"] = "home";
+    ViewData["BookName"] = Model.Book.Name;
 }
 
 <form id="diary-editor" method="post" action="/api/diary/@Model.Book.Id/@Model.Day/save"
@@ -12,8 +13,9 @@
     @Html.AntiForgeryToken()
     <header class="diary-heading page-header">
         <div>
-            <p class="eyebrow">@Model.Book.Name ／ 編集</p>
-            <h1>@Model.Date.ToString("yyyy年M月d日（ddd）")</h1>
+            <p class="eyebrow">EDIT DIARY</p>
+            <h1>@Model.Date.ToString("yyyy年M月d日")</h1>
+            <span class="muted">@Model.Date.ToString("dddd")</span>
         </div>
         <div class="actions">
             <button id="cancel-edit" type="button">キャンセル</button>
