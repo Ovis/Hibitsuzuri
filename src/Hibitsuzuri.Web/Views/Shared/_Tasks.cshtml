@@ -4,15 +4,8 @@
     var paused = Model.Day is not null && Model.Books.FirstOrDefault(x => x.Id == Model.BookId)?.TasksPausedOn is not null;
 }
 <link rel="stylesheet" href="~/css/tasks.css" asp-append-version="true" />
-<section class="task-app @(Model.Day is null ? "" : "paper spacer")" data-task-app data-book="@Model.BookId" data-day="@Model.Day?.ToString("yyyy-MM-dd")" data-today="@Model.Today.ToString("yyyy-MM-dd")" data-readonly="@((past || paused).ToString().ToLowerInvariant())">
+<section class="task-app @(Model.Day is null ? "" : "diary-tasks")" data-task-app data-book="@Model.BookId" data-day="@Model.Day?.ToString("yyyy-MM-dd")" data-today="@Model.Today.ToString("yyyy-MM-dd")" data-readonly="@((past || paused).ToString().ToLowerInvariant())">
     @Html.AntiForgeryToken()
-    <div class="diary-heading">
-        <h2>@(Model.Day is null ? "タスク一覧" : "この日のタスク")</h2>
-        @if (!past && !paused && Model.Books.Any(x => x.TasksPausedOn is null))
-        {
-            <button type="button" class="button primary" data-add-task>＋ タスクを追加</button>
-        }
-    </div>
     @if (past)
     {
         <p class="muted">過去の日付は閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
@@ -24,40 +17,62 @@
     @if (Model.Day is null)
     {
         <form data-task-filters>
-            <div class="task-tabs" aria-label="タスクの状態">
-                <button type="button" data-mode="pending" aria-pressed="true">未完了</button>
-                <button type="button" data-mode="completed" aria-pressed="false">完了済み</button>
-            </div>
-            <div class="task-tabs" aria-label="期限の有無">
-                <button type="button" data-kind="all" aria-pressed="true">すべて <span data-count="all">0</span></button>
-                <button type="button" data-kind="dated" aria-pressed="false">期限あり <span data-count="dated">0</span></button>
-                <button type="button" data-kind="undated" aria-pressed="false">期限なし <span data-count="undated">0</span></button>
+            <div class="task-deadline-views" aria-label="期限の有無" data-pending-filter>
+                <button type="button" data-kind="all" aria-pressed="true"><span>すべて <span data-count="all">0</span></span></button>
+                <button type="button" data-kind="dated" aria-pressed="false"><span>期限あり <span data-count="dated">0</span></span></button>
+                <button type="button" data-kind="undated" aria-pressed="false"><span>期限なし <span data-count="undated">0</span></span></button>
             </div>
             <details class="task-filters" open>
                 <summary>検索・絞り込み <span data-filter-summary></span></summary>
-                <div class="task-fields">
+                <div class="task-filter-fields">
+                    <label class="task-keyword">タスクを検索<input name="query" type="search" maxlength="200" placeholder="タスク名・メモ" /></label>
+                    <label>期限<select name="quick"><option value="all">すべての期限</option><option value="overdue">期限超過</option><option value="today">今日が期限</option></select></label>
                     <label>日記帳<select name="bookId"><option value="">すべての日記帳</option>
                         @foreach (var book in Model.Books)
                         {
                             <option value="@book.Id" selected="@(book.Id == Model.BookId)">@book.Name@(book.TasksPausedOn is null ? "" : "（停止中）")</option>
                         }
                     </select></label>
-                    <label>件名・メモ<input name="query" type="search" maxlength="200" placeholder="キーワード" /></label>
-                    <label>期限<select name="quick"><option value="all">すべて</option><option value="overdue">期限切れ</option><option value="today">今日</option></select></label>
-                    <label data-pending-filter>繰り返しの表示期限<input type="date" name="through" value="@Hibitsuzuri.Web.Tasks.TaskSchedule.Offset(Model.Today, 30).ToString("yyyy-MM-dd")" min="@Model.Today.ToString("yyyy-MM-dd")" max="9999-12-31" /></label>
-                    <label data-completed-filter hidden>完了した期間<select name="period"><option value="30">直近30日</option><option value="month">今月</option><option value="previous">先月</option><option value="custom">期間を指定</option><option value="all">すべて</option></select></label>
+                    <button type="submit">検索・適用</button>
+                    <button type="button" class="quiet" data-reset-filters>条件をクリア</button>
+                </div>
+                <div class="repeat-list-range" data-pending-filter>
+                    <label>繰り返しの表示期限<input type="date" name="through" value="@Hibitsuzuri.Web.Tasks.TaskSchedule.Offset(Model.Today, 30).ToString("yyyy-MM-dd")" min="@Model.Today.ToString("yyyy-MM-dd")" max="9999-12-31" /></label>
+                    <p class="muted">繰り返しの件数・次の期限・各回は、指定日までの範囲です。以降の予定はカレンダーでも確認できます。</p>
+                </div>
+                <div class="task-filter-fields" data-completed-filter hidden>
+                    <label>完了した期間<select name="period"><option value="30">直近30日</option><option value="month">今月</option><option value="previous">先月</option><option value="custom">期間を指定</option><option value="all">すべて</option></select></label>
                     <label data-custom-period hidden>開始日<input name="start" type="date" /></label>
                     <label data-custom-period hidden>終了日<input name="end" type="date" /></label>
-                    <button type="submit" class="button">絞り込む</button>
+                    <button type="submit">期間を適用</button>
                 </div>
             </details>
         </form>
     }
-    <p data-task-status role="status"></p>
-    <div data-task-waiting></div>
-    <div data-task-list></div>
-    <div class="task-pagination" data-task-pagination></div>
-    <div data-task-toast role="status" hidden><span></span> <button type="button" data-task-undo>元に戻す</button></div>
+    <div class="@(Model.Day is null ? "paper todo-overview" : "todo-section")">
+        <div class="diary-heading todo-heading">
+            @if (Model.Day is null)
+            {
+                <nav class="todo-views" aria-label="タスクの表示切替">
+                    <button type="button" data-mode="pending" aria-pressed="true"><span>未完了（<span data-pending-count>0</span>）</span></button>
+                    <button type="button" data-mode="completed" aria-pressed="false">完了済み</button>
+                </nav>
+            }
+            else
+            {
+                <h2>この日のタスク</h2>
+            }
+            @if (!past && !paused && Model.Books.Any(x => x.TasksPausedOn is null))
+            {
+                <button type="button" class="@(Model.Day is null ? "primary" : "quiet small")" data-add-task>＋ タスクを追加</button>
+            }
+        </div>
+        <p data-task-status role="status" class="muted"></p>
+        <div data-task-waiting></div>
+        <div data-task-list></div>
+        <div class="task-pagination" data-task-pagination></div>
+        <div data-task-toast role="status" hidden><span></span> <button type="button" data-task-undo>元に戻す</button></div>
+    </div>
 
     <dialog class="task-dialog" data-task-detail aria-labelledby="task-detail-title">
         <header><h2 id="task-detail-title"></h2><button type="button" data-close-detail aria-label="詳細を閉じる">×</button></header>

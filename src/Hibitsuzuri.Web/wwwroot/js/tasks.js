@@ -116,6 +116,10 @@
             }
 
             const expanded = new Set([...list.querySelectorAll("[data-series-id][open]")].map(element => element.dataset.seriesId));
+            if (mode === "pending" && select("[data-pending-count]")) {
+                select("[data-pending-count]").textContent = data.matched;
+            }
+
             list.replaceChildren();
             for (const count of root.querySelectorAll("[data-count]")) {
                 count.textContent = data.counts[count.dataset.count];
@@ -193,15 +197,30 @@
             + (item.completedAt ? " · 完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "");
         main.append(node("small", caption, !item.completedAt && item.dueDate && item.dueDate < today ? "task-overdue" : "muted"));
         container.append(checkbox, main);
+        if (!readOnly && !item.readOnly) {
+            container.append(button("編集", async () => {
+                opener = document.activeElement;
+                try {
+                    const existing = await request("/api/tasks/item?id=" + encodeURIComponent(item.id));
+                    showEditor(existing);
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            }, "quiet small"));
+        }
+
         return container;
     }
 
     function groupRow(group, completedRows) {
         const section = node("details", undefined, "task-series");
         section.dataset.seriesId = group.id;
-        section.append(node("summary", "↻ " + group.title + "（" + group.count + "件）"
-            + (group.overdue ? " · 期限切れ " + group.overdue + "件" : "")
-            + (mode === "pending" && group.next ? " · 次回 " + group.next : "") + " · " + group.bookName));
+        const heading = node("summary");
+        heading.append(node("span", group.title));
+        heading.append(node("small", (mode === "pending" && group.next ? "次の期限 " + group.next + " · " : "")
+            + "一致する" + (mode === "pending" ? "未完了 " : "完了 ") + group.count + "回"
+            + (group.overdue ? " · 期限超過 " + group.overdue + "回" : "") + " · " + group.bookName, "muted"));
+        section.append(heading);
         const content = node("div");
         section.append(content);
         let loaded = false;
@@ -276,19 +295,25 @@
 
         const values = new FormData(filterForm);
         const book = filterForm.elements.namedItem("bookId");
-        const summary = [book.selectedOptions[0]?.textContent || "すべての日記帳"];
+        const summary = [];
+        if (!book.value) {
+            summary.push("全日記帳");
+        } else if (book.value !== root.dataset.book) {
+            summary.push(book.selectedOptions[0].textContent);
+        }
+
         if (values.get("query")) {
             summary.push("「" + values.get("query") + "」");
         }
 
         const period = filterForm.elements.namedItem("period");
-        summary.push(mode === "completed" ? period.selectedOptions[0].textContent : values.get("through") + "まで");
+        summary.push(mode === "completed" ? "完了：" + period.selectedOptions[0].textContent : "繰り返し：" + values.get("through").replaceAll("-", "/") + "まで");
         const quick = filterForm.elements.namedItem("quick");
         if (quick.value !== "all") {
             summary.push(quick.selectedOptions[0].textContent);
         }
 
-        select("[data-filter-summary]").textContent = "— " + summary.join(" / ");
+        select("[data-filter-summary]").textContent = summary.join(" ・ ");
     }
 
     function memoText(text) {
@@ -657,6 +682,18 @@
         event.preventDefault();
         page = 1;
         load();
+        if (window.matchMedia("(max-width: 700px)").matches) {
+            select(".task-filters").open = false;
+            select(".task-filters summary").focus();
+        }
+    });
+    select("[data-reset-filters]")?.addEventListener("click", () => {
+        filterForm.reset();
+        kind = "all";
+        root.querySelectorAll("[data-kind]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.kind === "all")));
+        visible("[data-custom-period]", false);
+        page = 1;
+        load();
     });
     filterForm?.addEventListener("change", () => {
         visible("[data-custom-period]", mode === "completed" && filterForm.elements.namedItem("period").value === "custom");
@@ -666,6 +703,11 @@
             const category = tab.dataset.mode ? "mode" : "kind";
             if (category === "mode") {
                 mode = tab.dataset.mode;
+                kind = "all";
+                root.querySelectorAll("[data-kind]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.kind === "all")));
+                if (mode === "completed" && filterForm.elements.namedItem("quick").value === "overdue") {
+                    filterForm.elements.namedItem("quick").value = "all";
+                }
             } else {
                 kind = tab.dataset.kind;
             }
