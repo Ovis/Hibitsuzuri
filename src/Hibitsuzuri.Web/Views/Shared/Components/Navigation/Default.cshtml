@@ -10,7 +10,7 @@
     var secondary = new[]
     {
         (Href: "/books", Label: "日記帳の管理", Icon: "book", Section: "books"),
-        (Href: Model.Selected is null ? "/books" : $"/diary/{Model.Selected.Id}/trash", Label: "ゴミ箱", Icon: "trash", Section: "trash"),
+        (Href: Model.Selected is null ? "/books" : $"/diary/{Model.Selected.Id}/trash", Label: "日記のゴミ箱", Icon: "trash", Section: "trash"),
         (Href: "/data", Label: "データ管理", Icon: "download", Section: "data")
     };
     var settings = !primary.Any(x => x.Section == Model.Section);

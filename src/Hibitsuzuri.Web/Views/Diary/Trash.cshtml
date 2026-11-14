@@ -1,20 +1,21 @@
 @model Hibitsuzuri.Web.Diary.DiaryTrash
 @{
-    ViewData["Title"] = "ゴミ箱";
+    ViewData["Title"] = "日記のゴミ箱";
     ViewData["Navigation"] = "trash";
     ViewData["BookName"] = Model.Book.Name;
 }
 
 <header class="page-header">
     <p class="eyebrow">@Model.Book.Name</p>
-    <h1>ゴミ箱（@Model.Entries.Count 件）</h1>
+    <h1>日記のゴミ箱（@Model.Entries.Count 件）</h1>
     <a href="/diary/@Model.Book.Id">日記に戻る</a>
 </header>
+<p class="muted">この日記帳から削除した日記を表示します。削除した日記帳は<a href="/books">日記帳の管理</a>の「日記帳のゴミ箱」から復元できます。削除したタスクはゴミ箱に残りません。</p>
 
 <section class="paper">
     @if (Model.Entries.Count == 0)
     {
-        <p>ゴミ箱は空です。</p>
+        <p>日記のゴミ箱は空です。</p>
     }
 
     @foreach (var entry in Model.Entries)
@@ -41,9 +42,9 @@
 @if (Model.Entries.Count > 0)
 {
     <details class="settings-panel">
-        <summary>この日記帳のゴミ箱を空にする</summary>
+        <summary>この日記帳から削除した日記をすべて完全削除する</summary>
         <p>「@Model.Book.Name」の @Model.Entries.Count 件と編集履歴を完全削除します。元に戻せません。</p>
-        <form method="post" action="/diary/@Model.Book.Id/trash/empty" class="account-form" data-confirm="表示した日記帳のゴミ箱を空にします。よろしいですか？">
+        <form method="post" action="/diary/@Model.Book.Id/trash/empty" class="account-form" data-confirm="この日記帳から削除した日記と編集履歴をすべて完全削除します。よろしいですか？">
             @Html.AntiForgeryToken()
             <input type="hidden" name="snapshot" value="@Model.Snapshot" />
             <input type="hidden" name="count" value="@Model.Entries.Count" />

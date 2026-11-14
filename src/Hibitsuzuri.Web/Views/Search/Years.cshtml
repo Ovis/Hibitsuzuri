@@ -1,14 +1,14 @@
 @model Hibitsuzuri.Web.Diary.DiaryYears
 @inject Hibitsuzuri.Web.Images.ImageStore Images
 @{
-    ViewData["Title"] = "この日の記録";
+    ViewData["Title"] = "同じ月日の日記";
     ViewData["Navigation"] = "home";
 }
-<header class="page-header"><p class="eyebrow">@Model.Book.Name</p><h1>@Model.Date.ToString("M月d日") の記録</h1></header>
+<header class="page-header"><p class="eyebrow">@Model.Book.Name</p><h1>@Model.Date.ToString("M月d日") の日記</h1></header>
 <p><a href="/diary/@Model.Book.Id/@Model.Date.ToString("yyyy-MM-dd")">日記へ戻る</a></p>
 @if (Model.Entries.Count == 0)
 {
-    <p class="paper">この月日の記録はまだありません。</p>
+    <p class="paper">この月日の日記はまだありません。</p>
 }
 @foreach (var entry in Model.Entries)
 {

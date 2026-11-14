@@ -83,8 +83,8 @@
     </section>
     <aside class="reading-aside">
         <section class="aside-card">
-            <h2>この日の記録</h2>
-            <p class="muted">同じ月日の過去の日記</p>
+            <h2>同じ月日の日記</h2>
+            <p class="muted">この日記帳のほかの年の日記</p>
             <div class="memory-timeline">
                 @foreach (var memory in Model.Memories)
                 {
@@ -92,7 +92,7 @@
                 }
                 @if (Model.Memories.Count == 0)
                 {
-                    <p class="muted">ほかの年の記録はまだありません。</p>
+                    <p class="muted">ほかの年の同じ月日の日記はまだありません。</p>
                 }
             </div>
             <a class="button quiet small" href="@Model.Path/years">すべての年を表示 <partial name="_Icon" model='"right"' /></a>

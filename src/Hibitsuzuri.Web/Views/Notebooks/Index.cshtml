@@ -32,7 +32,7 @@
                 <a class="button quiet" href="/books/@book.Id#template">テンプレート</a>
                 <a class="button quiet" href="/books/@book.Id#archive">@(book.Archived ? "アーカイブを解除" : "アーカイブ")</a>
                 <a class="button quiet danger" href="/books/@book.Id#delete-book">削除</a>
-                <a class="button quiet" href="/diary/@book.Id/trash">ゴミ箱</a>
+                <a class="button quiet" href="/diary/@book.Id/trash">日記のゴミ箱</a>
                 <form method="post" action="/books/@book.Id/move">
                     @Html.AntiForgeryToken()
                     <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == visibleBooks[0])">↑</button>
