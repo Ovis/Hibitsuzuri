@@ -90,6 +90,16 @@ public sealed class TaskTests
         using var blocked = await SendAsync(client, new TaskChange { NotebookId = book, Title = "禁止", OperationId = Guid.NewGuid().ToString() });
         Assert.That(blocked.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
 
+        var pastDay = today.AddDays(-1).ToString("yyyy-MM-dd");
+        var pastDiary = await client.GetStringAsync($"/diary/{book}/{pastDay}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(pastDiary, Does.Contain("この日記帳のタスクは停止中のため、閲覧のみです。"));
+            Assert.That(pastDiary, Does.Not.Contain($"変更は<a href=\"/tasks?bookId={book}\">"));
+            Assert.That(pastDiary, Does.Contain($"href=\"/books/{book}\""));
+            Assert.That(pastDiary, Does.Contain($"href=\"/diary/{book}/{pastDay}/edit\""));
+        });
+
         app.Clock.Advance(TimeSpan.FromDays(2));
         using var login = await AuthClient.LoginAsync(client);
         version = await db.Notebooks.Where(x => x.Id == book).Select(x => x.Version).SingleAsync();

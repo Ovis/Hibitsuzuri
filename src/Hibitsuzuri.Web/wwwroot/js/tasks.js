@@ -8,6 +8,7 @@
 
     const select = selector => root.querySelector(selector);
     const filterForm = select("[data-task-filters]");
+    const intro = document.querySelector("[data-task-list-intro]");
     const list = select("[data-task-list]");
     const status = select("[data-task-status]");
     const editor = select("[data-task-editor]");
@@ -707,6 +708,12 @@
                 root.querySelectorAll("[data-kind]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.kind === "all")));
                 if (mode === "completed" && filterForm.elements.namedItem("quick").value === "overdue") {
                     filterForm.elements.namedItem("quick").value = "all";
+                }
+
+                if (intro) {
+                    intro.textContent = mode === "completed"
+                        ? "完了済みのタスクを完了日時の新しい順に表示します。繰り返しは展開すると各回を確認できます。"
+                        : "未完了のタスクを期限順に表示します。繰り返しは展開すると各回を確認できます。";
                 }
             } else {
                 kind = tab.dataset.kind;

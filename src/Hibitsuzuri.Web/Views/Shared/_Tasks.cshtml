@@ -59,13 +59,13 @@
                 <button type="button" class="@(Model.Day is null ? "primary" : "quiet small")" data-add-task>＋ タスクを追加</button>
             }
         </div>
-        @if (past)
+        @if (paused)
+        {
+            <p class="notice">この日記帳のタスクは停止中のため、閲覧のみです。再開は<a href="/books/@Model.BookId">日記帳の設定</a>から行えます。</p>
+        }
+        else if (past)
         {
             <p class="muted">過去の日付のタスクは、この画面では閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
-        }
-        else if (paused)
-        {
-            <p class="notice">この日記帳のタスクは停止中です。再開は<a href="/books/@Model.BookId">日記帳の設定</a>から行えます。</p>
         }
         <p data-task-status role="status" class="muted"></p>
         <div data-task-waiting></div>
