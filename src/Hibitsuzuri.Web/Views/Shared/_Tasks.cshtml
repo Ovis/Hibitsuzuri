@@ -6,14 +6,6 @@
 <link rel="stylesheet" href="~/css/tasks.css" asp-append-version="true" />
 <section class="task-app @(Model.Day is null ? "" : "diary-tasks")" data-task-app data-book="@Model.BookId" data-day="@Model.Day?.ToString("yyyy-MM-dd")" data-today="@Model.Today.ToString("yyyy-MM-dd")" data-readonly="@((past || paused).ToString().ToLowerInvariant())">
     @Html.AntiForgeryToken()
-    @if (past)
-    {
-        <p class="muted">過去の日付は閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
-    }
-    else if (paused)
-    {
-        <p class="notice">この日記帳のタスクは停止中です。再開は<a href="/books/@Model.BookId">日記帳の設定</a>から行えます。</p>
-    }
     @if (Model.Day is null)
     {
         <form data-task-filters>
@@ -67,6 +59,14 @@
                 <button type="button" class="@(Model.Day is null ? "primary" : "quiet small")" data-add-task>＋ タスクを追加</button>
             }
         </div>
+        @if (past)
+        {
+            <p class="muted">過去の日付のタスクは、この画面では閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
+        }
+        else if (paused)
+        {
+            <p class="notice">この日記帳のタスクは停止中です。再開は<a href="/books/@Model.BookId">日記帳の設定</a>から行えます。</p>
+        }
         <p data-task-status role="status" class="muted"></p>
         <div data-task-waiting></div>
         <div data-task-list></div>
