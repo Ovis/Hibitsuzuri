@@ -173,7 +173,7 @@ svg {
     position: sticky;
     top: 0;
     height: 100dvh;
-    padding: 38px 22px 54px;
+    padding: 38px 22px 22px;
     background: var(--sidebar);
     display: flex;
     flex-direction: column;
@@ -527,6 +527,7 @@ svg {
     align-items: center;
     gap: 10px;
     margin-bottom: 10px;
+    font-weight: 400;
 }
 
 .notebook-row p {
@@ -549,6 +550,147 @@ svg {
 
 .form-dialog::backdrop {
     background: #0007;
+    backdrop-filter: blur(3px);
+}
+
+.form-dialog h2 {
+    font-size: 24px;
+    font-weight: 400;
+}
+
+.dialog-heading, .dialog-actions, .calendar-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.dialog-heading h2, .calendar-heading h2 {
+    margin: 0;
+}
+
+.dialog-actions {
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+.dialog-heading > button {
+    border: 0;
+    background: transparent;
+}
+
+.history-dialog {
+    width: min(760px, calc(100vw - 32px));
+}
+
+.history-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.page-dialog {
+    width: min(640px, calc(100vw - 36px));
+}
+
+.page-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.page-dialog .account-form, .page-dialog .form-stack {
+    max-width: none;
+    padding: 0;
+    border: 0;
+}
+
+.dialog-body {
+    overflow-y: auto;
+    min-height: 0;
+    padding-block: 16px;
+}
+
+.dialog-body .prose {
+    margin-top: 24px;
+}
+
+.editor-image-add {
+    margin-left: auto;
+}
+
+.editor-attachments {
+    padding: 16px 20px;
+    border-top: 1px solid var(--line);
+}
+
+.editor-footer {
+    margin-top: 24px;
+}
+
+.diary-special-days, .calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.diary-special-days span, .calendar-legend span, .calendar-anniversary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.diary-special-days:empty {
+    display: none;
+}
+
+.diary-special-days {
+    margin-top: 12px;
+    font-size: 12px;
+}
+
+.calendar-legend .icon, .calendar-anniversary .icon, .task-marker .icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+.calendar-entry-title, .record-excerpt {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
+
+.mini-calendar .calendar-entry-title, .mini-calendar .calendar-today {
+    display: none;
+}
+
+.record-meta, .record-meta a {
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.record-title {
+    font-size: 18px;
+    font-weight: 400;
+    margin: 12px 0;
+    overflow-wrap: anywhere;
+}
+
+.record-title a {
+    text-decoration: none;
+}
+
+.trash-record {
+    padding: 28px;
+    border-bottom: 1px solid var(--line);
+}
+
+.trash-record:last-child {
+    border-bottom: 0;
 }
 
 .danger {
@@ -584,7 +726,7 @@ svg {
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 20px;
+    margin-top: 0;
 }
 
 .calendar-jump input[type="month"] {
@@ -1189,6 +1331,14 @@ textarea {
 .calendar-anniversary {
     color: var(--ink);
 }
+
+.calendar-month .calendar-anniversary span {
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
 .entry-dot {
     color: var(--accent);
     font-size: .7rem;
@@ -1765,16 +1915,26 @@ input[role="switch"]:checked::before {
         font-size: 12px;
     }
 
-    .calendar-month .calendar-holiday {
-        font-size: 0;
-    }
-
-    .calendar-month .calendar-holiday::after {
-        content: "祝";
-        font-size: 9px;
-    }
-
-    .calendar-month .calendar-anniversary span {
+    .calendar-month .calendar-entry-title {
         display: none;
+    }
+
+    .calendar-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .calendar-heading .date-controls {
+        align-self: center;
+    }
+
+    .calendar-month .calendar-anniversary {
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .calendar-month .calendar-anniversary .icon {
+        width: 10px;
+        height: 10px;
     }
 }

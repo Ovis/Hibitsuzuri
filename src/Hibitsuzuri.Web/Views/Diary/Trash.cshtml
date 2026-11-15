@@ -20,8 +20,10 @@
 
     @foreach (var entry in Model.Entries)
     {
-        <div class="book-row">
-            <a href="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日")</a>
+        <article class="trash-record">
+            <a class="record-meta" href="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日")</a>
+            <h2 class="record-title">@(entry.PlainText.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "日記")</h2>
+            <p class="record-excerpt">@entry.PlainText</p>
             <div class="actions">
                 <form method="post" action="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")/trash">
                     @Html.AntiForgeryToken()
@@ -32,10 +34,10 @@
                 <form method="post" action="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")/trash" data-confirm="この日記と編集履歴を完全削除します。元に戻せません。削除しますか？">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="version" value="@entry.Version" />
-                    <button name="action" value="purge">完全削除</button>
+                    <button class="quiet danger" name="action" value="purge">完全削除</button>
                 </form>
             </div>
-        </div>
+        </article>
     }
 </section>
 

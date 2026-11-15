@@ -15,7 +15,7 @@
         <div>
             <p class="eyebrow">EDIT DIARY</p>
             <h1>@Model.Date.ToString("yyyy年M月d日")</h1>
-            <span class="muted">@Model.Date.ToString("dddd")</span>
+            <span class="muted">@Model.Book.Name ／ 日記を編集</span>
         </div>
         <div class="actions">
             <button id="cancel-edit" type="button">キャンセル</button>
@@ -54,9 +54,11 @@
         <div class="editor-toolbar" role="group" aria-label="Markdown書式">
             <button type="button" data-format="bold" aria-label="太字"><b>B</b></button>
             <button type="button" data-format="italic" aria-label="斜体"><i>I</i></button>
-            <button type="button" data-format="heading">見出し</button>
-            <button type="button" data-format="list">箇条書き</button>
-            <button type="button" data-format="link">リンク</button>
+            <button type="button" data-format="heading" aria-label="見出し">H</button>
+            <button type="button" data-format="list" aria-label="箇条書き">☷</button>
+            <button type="button" data-format="link" aria-label="リンク">↗</button>
+            <button type="button" class="editor-image-add" id="add-image"><partial name="_Icon" model='"image"' />画像を追加</button>
+            <input id="image-files" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden />
         </div>
 
         <div class="editor-grid" data-active-pane="edit">
@@ -76,19 +78,18 @@
             <span id="draft-status" role="status">下書きはこのブラウザに保存されます。</span>
             <span id="word-count"></span>
         </div>
+        <div class="editor-attachments">
+            <p id="image-status" class="muted" role="status">画像を確認しています。</p>
+            <div id="image-list" class="attachment-list"></div>
+            <details class="muted">
+                <summary>画像の保存について</summary>
+                <p>JPEG・PNG・WebP・GIF、1枚20MiB以内。HEIC/HEIFはJPEG等へ変換してください。<a href="/settings/images" target="_blank" rel="noopener noreferrer">保存設定</a></p>
+                <p class="muted">下書きだけの画像は最後の下書き保存から30日間保持します。本文の下書きには期限がありません。日記・履歴に残る画像は保持されます。</p>
+            </details>
+        </div>
     </section>
 
-    <section class="settings-panel">
-        <h2>添付画像</h2>
-        <label for="image-files">画像を追加</label>
-        <input id="image-files" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
-        <p class="muted">JPEG・PNG・WebP・GIF、1枚20MiB以内。HEIC/HEIFはJPEG等へ変換してください。<a href="/settings/images" target="_blank" rel="noopener noreferrer">保存設定</a></p>
-        <p id="image-status" role="status">画像を確認しています。</p>
-        <div id="image-list" class="attachment-list"></div>
-        <p class="muted">下書きだけの画像は最後の下書き保存から30日間保持します。本文の下書きには期限がありません。日記・履歴に残る画像は保持されます。</p>
-    </section>
-
-    <details id="history" class="settings-panel">
+    <details id="history" class="settings-panel" hidden>
         <summary>編集履歴（過去 @Model.Revisions.Count 版）</summary>
         <p class="muted">読み込み後に確認し、明示保存すると現行版に反映されます。</p>
         @foreach (var revision in Model.Revisions)
@@ -110,4 +111,26 @@
 @Model.Book.Template</textarea>
 </form>
 
+<div class="diary-heading editor-footer">
+    <p class="muted">下書きはこのブラウザに保存されます。</p>
+    @if (Model.Entry is { DeletedAt: null })
+    {
+        <form method="post" action="@Model.Path/trash" data-confirm="この日の日記をゴミ箱に移しますか？">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="version" value="@Model.Entry.Version" />
+            <button class="quiet danger" name="action" value="delete"><partial name="_Icon" model='"trash"' />ゴミ箱に移す</button>
+        </form>
+    }
+</div>
+<dialog id="diary-link" class="form-dialog" aria-labelledby="diary-link-title">
+    <form id="diary-link-form" class="account-form">
+        <h2 id="diary-link-title">リンクを挿入</h2>
+        <label>リンク名<input name="text" required /></label>
+        <label>URL<input name="url" type="url" placeholder="https://" required /></label>
+        <div class="dialog-actions"><button type="button" data-close-dialog>閉じる</button><button class="primary" type="submit">挿入する</button></div>
+    </form>
+</dialog>
+<partial name="_DiaryHistory" model="Model" />
+
 <script src="~/js/diary-editor.js" asp-append-version="true" type="module"></script>
+<script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

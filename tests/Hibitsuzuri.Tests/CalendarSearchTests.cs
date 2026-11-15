@@ -85,6 +85,9 @@ public sealed class CalendarSearchTests
         Assert.That(width, Does.Contain("<mark>ＡＢＣ１２</mark>"));
         Assert.That(years, Does.Contain("2001年5月10日").And.Contain("2020年5月10日").And.Not.Contain("秘密").And.Not.Contain("別冊"));
 
+        var calendar = WebUtility.HtmlDecode(await owner.GetStringAsync($"/calendar?bookId={book}&month=2020-05"));
+        Assert.That(calendar, Does.Contain("花 現在").And.Not.Contain("花 削除").And.Not.Contain("花 秘密").And.Not.Contain("花 別冊"));
+
         foreach (var path in new[] { $"/calendar?bookId={foreign}", $"/search?keyword=花&bookId={foreign}", $"/diary/{foreign}/2020-05-10/years" })
         {
             using var response = await owner.GetAsync(path);

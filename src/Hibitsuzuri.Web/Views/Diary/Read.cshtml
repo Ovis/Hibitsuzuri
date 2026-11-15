@@ -12,6 +12,15 @@
                 <p class="eyebrow">DIARY</p>
                 <h1>@Model.Date.ToString("yyyy年M月d日")</h1>
                 <span class="muted">@Model.Date.ToString("dddd")@(Model.Date == Model.Today ? "　・　今日" : "")</span>
+                @if (Model.Calendar is not null)
+                {
+                    <div class="diary-special-days">
+                        @foreach (var title in Model.Calendar.Anniversaries[Model.Date])
+                        {
+                            <span><partial name="_Icon" model='"star"' />@title</span>
+                        }
+                    </div>
+                }
             </div>
             <div class="diary-heading date-actions">
                 <nav class="date-controls" aria-label="日付の移動">
@@ -54,12 +63,7 @@
                 <article class="prose">@Html.Raw(Model.Html)</article>
                 <div class="diary-heading entry-footer">
                     <span>最終更新 @DateTimeOffset.FromUnixTimeMilliseconds(Model.Entry.UpdatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                    <a class="button quiet small" href="@Model.Path/edit#history">編集履歴（過去 @Model.Revisions.Count 版）</a>
-                    <form method="post" action="@Model.Path/trash" data-confirm="この日の日記をゴミ箱に移しますか？">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="version" value="@Model.Entry.Version" />
-                        <button class="quiet small" name="action" value="delete">ゴミ箱に移す</button>
-                    </form>
+                    <button class="quiet small" type="button" data-open-dialog="diary-history">編集履歴</button>
                 </div>
             </div>
         }
@@ -109,4 +113,5 @@
         </section>
     </aside>
 </div>
+<partial name="_DiaryHistory" model="Model" />
 <script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

@@ -25,23 +25,28 @@
            data-calendar-date="@date.ToString("yyyy-MM-dd")"
            aria-label="@label" aria-current="@(date == Model.Selected ? "date" : null)">
             <span>@number</span>
+            @if (date == Model.Today)
+            {
+                <small class="calendar-today">今日</small>
+            }
             @if (holiday is not null)
             {
                 <small class="calendar-holiday">@holiday</small>
             }
             @if (names.Length > 0)
             {
-                <small class="calendar-anniversary">★ <span>@string.Join("、", names)</span></small>
+                <small class="calendar-anniversary"><partial name="_Icon" model='"star"' /><span>@string.Join("、", names)</span></small>
             }
             @if (hasEntry)
             {
                 <span class="entry-dot" aria-hidden="true">●</span>
+                <small class="calendar-entry-title">@Model.EntryTitles.GetValueOrDefault(date)</small>
             }
             @if (hasTasks)
             {
-                <span class="task-marker" data-task-marker aria-hidden="true">☑</span>
+                <span class="task-marker" data-task-marker aria-hidden="true"><partial name="_Icon" model='"checklist"' /></span>
             }
         </a>
     }
 </div>
-<p class="muted calendar-legend">● 日記あり　☑ 未完了タスク　★ 記念日　<span class="holiday">祝日・日曜</span>　<span class="saturday">土曜</span></p>
+<div class="muted calendar-legend"><span>● 日記あり</span><span><partial name="_Icon" model='"checklist"' /> 未完了タスク</span><span><partial name="_Icon" model='"star"' /> 記念日</span><span class="holiday">祝日・日曜</span><span class="saturday">土曜</span></div>

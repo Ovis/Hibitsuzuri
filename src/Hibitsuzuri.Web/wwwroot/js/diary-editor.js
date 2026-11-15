@@ -21,6 +21,9 @@ let leaving = false;
 let draftTimer;
 let previewTimer;
 let previewRequest;
+let linkSelection;
+const linkDialog = document.querySelector('#diary-link');
+const linkForm = document.querySelector('#diary-link-form');
 
 const images = createImageEditor({
     form, content, draftId, post, changed, showNotice,
@@ -321,6 +324,14 @@ document.querySelectorAll('[data-format]').forEach(button => {
         }
 
         const selection = content.value.slice(content.selectionStart, content.selectionEnd);
+        if (button.dataset.format === 'link') {
+            linkSelection = { start: content.selectionStart, end: content.selectionEnd };
+            linkForm.reset();
+            linkForm.elements.namedItem('text').value = selection;
+            linkDialog.showModal();
+            return;
+        }
+
         const formats = {
             bold: `**${selection || '太字'}**`, italic: `*${selection || '斜体'}*`,
             heading: `\n## ${selection || '見出し'}\n`, list: `\n- ${selection || '項目'}\n`,
@@ -333,6 +344,36 @@ document.querySelectorAll('[data-format]').forEach(button => {
         changed();
     });
 });
+
+document.querySelector('#add-image').addEventListener('click', () => {
+    if (!busy) {
+        document.querySelector('#image-files').click();
+    }
+});
+
+linkForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const url = new URL(linkForm.elements.namedItem('url').value);
+    if (!['https:', 'http:'].includes(url.protocol)) {
+        linkForm.elements.namedItem('url').setCustomValidity('HTTPまたはHTTPSのURLを入力してください。');
+        linkForm.reportValidity();
+        return;
+    }
+
+    if (busy || !linkSelection) {
+        return;
+    }
+
+    const text = linkForm.elements.namedItem('text').value.replace(/[\\\[\]]/g, '\\$&');
+    const destination = url.href.replaceAll('(', '%28').replaceAll(')', '%29');
+    content.setRangeText(`[${text}](${destination})`, linkSelection.start, linkSelection.end, 'end');
+    linkDialog.close();
+    content.focus();
+    operation = null;
+    changed();
+});
+
+linkForm.elements.namedItem('url').addEventListener('input', event => event.target.setCustomValidity(''));
 
 document.querySelectorAll('[data-editor-tab]').forEach(button => {
     button.addEventListener('click', () => {
@@ -365,6 +406,18 @@ try {
     drafts = new DiaryDrafts(localStorage, form.dataset.owner, form.dataset.book, form.dataset.date);
     const candidates = drafts.list();
     renderCandidates(candidates);
+
+    const revisionId = new URLSearchParams(location.search).get('revision');
+    const revisionContent = revisionId && document.getElementById(`revision-${revisionId}`);
+    if (revisionContent && candidates.length === 0) {
+        content.value = revisionContent.value;
+        changed();
+        showNotice('過去の本文と画像を読み込みました。「保存する」を押すまで日記は変わりません。');
+    } else if (revisionContent) {
+        document.querySelector('#history').hidden = false;
+        document.querySelector('#history').open = true;
+        showNotice('ブラウザに下書きがあるため、履歴を自動で読み込みません。下書きを確認してから、下の履歴で読み込む版を選んでください。');
+    }
 
     if (candidates.length === 0 && form.dataset.new === 'true') {
         content.value = document.querySelector('#book-template').value;

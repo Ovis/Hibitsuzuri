@@ -46,6 +46,9 @@ public sealed class CalendarMonth
     /// <summary>ゴミ箱を除く日記のある日</summary>
     public IReadOnlySet<DateOnly> Entries { get; init; } = new HashSet<DateOnly>();
 
+    /// <summary>月間表示で日記を見分けるための本文冒頭</summary>
+    public IReadOnlyDictionary<DateOnly, string> EntryTitles { get; init; } = new Dictionary<DateOnly, string>();
+
     /// <summary>期限のある未完了タスクの日。件数や件名は月表示へ載せない</summary>
     public IReadOnlySet<DateOnly> PendingTasks { get; init; } = new HashSet<DateOnly>();
 
@@ -75,7 +78,7 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock, Hi
         var state = await database.HolidayStates.SingleAsync();
         var holidays = await database.Holidays.Where(x => x.Date >= first && x.Date <= last).ToDictionaryAsync(x => x.Date, x => x.Name);
         var entries = await database.DiaryEntries.Where(x => x.NotebookId == book.Id && x.DeletedAt == null && x.EntryDate >= first && x.EntryDate <= last)
-            .Select(x => x.EntryDate).ToListAsync();
+            .Select(x => new { x.EntryDate, Text = x.PlainText.Substring(0, 100) }).ToListAsync();
         var anniversaries = await database.Anniversaries.Where(x => x.UserId == owner && (x.AllNotebooks || x.Notebooks.Any(n => n.NotebookId == book.Id)))
             .OrderBy(x => x.Title).ToListAsync();
 
@@ -88,7 +91,8 @@ public sealed class CalendarReader(AppDbContext database, TimeProvider clock, Hi
             Today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime),
             HolidaysKnown = selected.Year >= state.FirstYear && selected.Year <= state.LastYear,
             Holidays = holidays,
-            Entries = entries.ToHashSet(),
+            Entries = entries.Select(x => x.EntryDate).ToHashSet(),
+            EntryTitles = entries.ToDictionary(x => x.EntryDate, x => x.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "日記"),
             PendingTasks = pendingTasks.ToHashSet(),
             Anniversaries = anniversaries.Select(x => (Date: x.InYear(selected.Year), x.Title))
                 .Where(x => x.Date >= first && x.Date <= last).ToLookup(x => x.Date.GetValueOrDefault(), x => x.Title)
