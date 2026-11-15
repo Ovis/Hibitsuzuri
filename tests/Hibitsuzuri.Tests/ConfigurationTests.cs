@@ -8,6 +8,38 @@ namespace Hibitsuzuri.Tests;
 /// <summary>誤った配置設定を起動前に拒否する条件を検証する</summary>
 public sealed class ConfigurationTests
 {
+    /// <summary>省略時はプロキシIPの制限を維持し、明示した場合だけ配置側管理へ切り替える</summary>
+    [TestCase(null, false)]
+    [TestCase("KnownProxies", false)]
+    [TestCase("DeploymentManaged", true)]
+    public void ProxyModeRequiresExplicitDeploymentManagement(string? mode, bool deploymentManaged)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Site:PublicOrigin"] = "https://diary.example.test",
+            ["ReverseProxy:Mode"] = mode
+        }).Build();
+
+        var settings = new SiteSettings(configuration, new TestEnvironment());
+
+        Assert.That(settings.DeploymentManagedProxy, Is.EqualTo(deploymentManaged));
+    }
+
+    /// <summary>空欄や誤記を別の信頼方式へ読み替えず、起動時に拒否する</summary>
+    [TestCase("")]
+    [TestCase("0")]
+    [TestCase("DeploymentManage")]
+    public void InvalidProxyModeIsRejected(string mode)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Site:PublicOrigin"] = "https://diary.example.test",
+            ["ReverseProxy:Mode"] = mode
+        }).Build();
+
+        Assert.Throws<InvalidOperationException>(() => new SiteSettings(configuration, new TestEnvironment()));
+    }
+
     /// <summary>本番の平文URL、認証情報・パス・クエリを含むURLを拒否する</summary>
     [TestCase("")]
     [TestCase("http://diary.example.test")]

@@ -96,14 +96,20 @@ public partial class Program
         });
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // 配置側管理では、任意の送信元が申告したIPを監査や認証の回数制限に使わない。
+            options.ForwardedHeaders = site.DeploymentManagedProxy
+                ? ForwardedHeaders.XForwardedProto
+                : ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
             options.ForwardLimit = 1;
             options.KnownProxies.Clear();
             options.KnownIPNetworks.Clear();
 
-            foreach (var proxy in site.KnownProxies)
+            if (!site.DeploymentManagedProxy)
             {
-                options.KnownProxies.Add(proxy);
+                foreach (var proxy in site.KnownProxies)
+                {
+                    options.KnownProxies.Add(proxy);
+                }
             }
         });
 
@@ -116,8 +122,8 @@ public partial class Program
         app.Use(RequestSecurity.AddHeadersAsync);
         app.Use(HealthEndpoints.HandleAsync);
 
-        // 信頼先が空のまま転送処理を有効にすると、全接続元を信頼してしまう。
-        if (site.KnownProxies.Count != 0)
+        // 全接続元からのHTTPS情報は、配置側管理を明示した場合だけ受け入れる。
+        if (site.DeploymentManagedProxy || site.KnownProxies.Count != 0)
         {
             app.UseForwardedHeaders();
         }

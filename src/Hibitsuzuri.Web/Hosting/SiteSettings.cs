@@ -17,6 +17,12 @@ public sealed class SiteSettings
         get;
     }
 
+    /// <summary>配置側の接続制限を前提に、転送元IPを限定せずHTTPS情報だけを受け入れる</summary>
+    public bool DeploymentManagedProxy
+    {
+        get;
+    }
+
     /// <summary>配置設定を検証し、公開先と信頼境界を確定する</summary>
     public SiteSettings(IConfiguration configuration, IHostEnvironment environment)
     {
@@ -38,6 +44,13 @@ public sealed class SiteSettings
         {
             throw new InvalidOperationException("公開URLにはHTTPSが必要です。HTTPはDevelopmentのループバック接続だけに使用できます。");
         }
+
+        DeploymentManagedProxy = configuration["ReverseProxy:Mode"] switch
+        {
+            null or "KnownProxies" => false,
+            "DeploymentManaged" => true,
+            _ => throw new InvalidOperationException("ReverseProxy:ModeにはKnownProxiesまたはDeploymentManagedを指定してください。")
+        };
 
         var proxies = new List<IPAddress>();
         foreach (var entry in configuration.GetSection("ReverseProxy:KnownProxies").GetChildren())

@@ -26,10 +26,12 @@ public sealed class HostTests
     }
 
     /// <summary>未知のHostと転送先Hostの偽装を拒否する</summary>
-    [Test]
-    public async Task UnknownHostIsRejectedEvenWithForwardedHost()
+    [TestCase("KnownProxies")]
+    [TestCase("DeploymentManaged")]
+    public async Task UnknownHostIsRejectedEvenWithForwardedHost(string mode)
     {
         await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = mode;
         using var browser = app.CreateBrowser();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Host = "attacker.example";
@@ -41,10 +43,12 @@ public sealed class HostTests
     }
 
     /// <summary>HTTP閲覧は公開先へ転送し、HTTP更新は実行せず失敗させる</summary>
-    [Test]
-    public async Task PlainHttpRedirectsReadsButRejectsWrites()
+    [TestCase("KnownProxies")]
+    [TestCase("DeploymentManaged")]
+    public async Task PlainHttpRedirectsReadsButRejectsWrites(string mode)
     {
         await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = mode;
         using var browser = app.CreateBrowser();
 
         using var read = await browser.GetAsync("http://diary.example.test/fixture/request?q=1");
@@ -100,6 +104,61 @@ public sealed class HostTests
         Assert.That((int)response.StatusCode, Is.EqualTo(308));
     }
 
+    /// <summary>配置側管理では直近1段のHTTPS情報だけを採用し、申告されたIPとHostは無視する</summary>
+    [TestCase("https", 200)]
+    [TestCase("http, https", 200)]
+    [TestCase("https, http", 308)]
+    public async Task DeploymentManagedProxyOnlyAcceptsNearestScheme(string forwardedProto, int expectedStatus)
+    {
+        await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = "DeploymentManaged";
+        app.Settings.Remove("ReverseProxy:KnownProxies:0");
+
+        var response = await app.Server.SendAsync(context =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Parse("10.20.0.3");
+            context.Request.Scheme = "http";
+            context.Request.Host = new HostString("diary.example.test");
+            context.Request.Method = "GET";
+            context.Request.Path = "/fixture/request";
+            context.Request.Headers["X-Forwarded-Proto"] = forwardedProto;
+            context.Request.Headers["X-Forwarded-For"] = "203.0.113.7";
+            context.Request.Headers["X-Forwarded-Host"] = "attacker.example";
+        });
+
+        Assert.That(response.Response.StatusCode, Is.EqualTo(expectedStatus));
+        if (expectedStatus == 200)
+        {
+            using var reader = new StreamReader(response.Response.Body);
+            Assert.That(await reader.ReadToEndAsync(), Is.EqualTo("https|diary.example.test|10.20.0.3"));
+        }
+    }
+
+    /// <summary>配置側管理の認証要求はプロキシIPで枠を共有し、利用者IPの申告では制限を回避できない</summary>
+    [Test]
+    public async Task DeploymentManagedAuthenticationSharesProxyLimit()
+    {
+        await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = "DeploymentManaged";
+        app.Settings.Remove("ReverseProxy:KnownProxies:0");
+
+        for (var attempt = 1; attempt <= 31; attempt++)
+        {
+            var response = await app.Server.SendAsync(context =>
+            {
+                context.Connection.RemoteIpAddress = IPAddress.Parse("10.20.0.3");
+                context.Request.Scheme = "http";
+                context.Request.Host = new HostString("diary.example.test");
+                context.Request.Method = "GET";
+                context.Request.Path = "/auth/login";
+                context.Request.Headers["X-Forwarded-Proto"] = "https";
+                context.Request.Headers["X-Forwarded-For"] = $"203.0.113.{attempt}";
+            });
+
+            Assert.That(response.Response.StatusCode, Is.EqualTo(attempt <= 30 ? 302 : 429), $"認証要求 {attempt}回目");
+        }
+    }
+
     /// <summary>エラー応答は元の失敗を維持し、APIへHTMLを返さない</summary>
     [TestCase("/missing", 404, "text/html")]
     [TestCase("/api/missing", 404, "application/problem+json")]
@@ -124,10 +183,12 @@ public sealed class HostTests
     }
 
     /// <summary>更新にはCookieと対応するトークンが必要で、保護CookieはHTTPS専用にする</summary>
-    [Test]
-    public async Task MvcWritesRequireAntiforgeryToken()
+    [TestCase("KnownProxies")]
+    [TestCase("DeploymentManaged")]
+    public async Task MvcWritesRequireAntiforgeryToken(string mode)
     {
         await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = mode;
         using var browser = app.CreateBrowser();
 
         using var rejected = await browser.PostAsync("/fixture/write", new StringContent(""));
@@ -148,11 +209,14 @@ public sealed class HostTests
     }
 
     /// <summary>ヘルスチェックは実際のループバック接続だけに応答し、転送ヘッダーでは偽装できない</summary>
-    [TestCase("127.0.0.1", 200)]
-    [TestCase("10.20.0.2", 404)]
-    public async Task ReadinessIsOnlyAvailableInsideHost(string remoteIp, int expectedStatus)
+    [TestCase("127.0.0.1", "KnownProxies", 200)]
+    [TestCase("10.20.0.2", "KnownProxies", 404)]
+    [TestCase("127.0.0.1", "DeploymentManaged", 200)]
+    [TestCase("10.20.0.2", "DeploymentManaged", 404)]
+    public async Task ReadinessIsOnlyAvailableInsideHost(string remoteIp, string mode, int expectedStatus)
     {
         await using var app = new TestApplication();
+        app.Settings["ReverseProxy:Mode"] = mode;
 
         var response = await app.Server.SendAsync(context =>
         {
