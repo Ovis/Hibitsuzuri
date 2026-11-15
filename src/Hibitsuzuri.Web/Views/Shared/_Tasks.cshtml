@@ -18,7 +18,7 @@
                 <summary>検索・絞り込み <span data-filter-summary></span></summary>
                 <div class="task-filter-fields">
                     <label class="task-keyword">タスクを検索<input name="query" type="search" maxlength="200" placeholder="タスク名・メモ" /></label>
-                    <label>期限<select name="quick"><option value="all">すべての期限</option><option value="overdue">期限超過</option><option value="today">今日が期限</option></select></label>
+                    <label>期限<select name="quick"><option value="all">すべての期限</option><option value="dated">期限あり</option><option value="overdue">期限超過</option><option value="today">今日が期限</option><option value="undated">期限なし</option></select></label>
                     <label>日記帳<select name="bookId"><option value="">すべての日記帳</option>
                         @foreach (var book in Model.Books)
                         {
@@ -75,14 +75,14 @@
     </div>
 
     <dialog class="task-dialog" data-task-detail aria-labelledby="task-detail-title">
-        <header><h2 id="task-detail-title"></h2><button type="button" data-close-detail aria-label="詳細を閉じる">×</button></header>
+        <header><h2 id="task-detail-title">タスクの詳細</h2><button type="button" data-close-detail aria-label="詳細を閉じる">×</button></header>
         <div class="task-dialog-body">
-            <p data-detail-meta class="muted"></p>
+            <h3 data-detail-title></h3>
+            <dl class="task-facts" data-detail-meta></dl>
+            <h3>メモ</h3>
             <div data-detail-memo class="task-memo"></div>
-            <p data-detail-repeat></p>
-            <p data-detail-reminders></p>
         </div>
-        <footer><button type="button" data-delete-task>削除</button><button type="button" class="button primary" data-edit-task>編集</button></footer>
+        <footer><button type="button" class="button primary" data-edit-task>編集する</button></footer>
     </dialog>
 
     <dialog class="task-dialog" data-task-delete aria-labelledby="task-delete-title">
@@ -108,15 +108,17 @@
                         <option value="@book.Id" disabled="@(book.TasksPausedOn is not null)">@book.Name@(book.TasksPausedOn is null ? "" : "（停止中）")</option>
                     }
                 </select></label>
-                <label>件名<input name="title" maxlength="400" required /></label>
-                <label>メモ<textarea name="memo" maxlength="20000" rows="5"></textarea></label>
-                <label data-due-field>期限<input type="date" name="dueDate" /></label>
-                <label data-repeat-toggle><input type="checkbox" name="repeating" /> 繰り返す</label>
+                <label>タスク<input name="title" maxlength="400" required /></label>
+                <label>メモ（任意）<textarea name="memo" maxlength="20000" rows="3" placeholder="手順や参照先のURLなど"></textarea></label>
+                <label data-due-field>期限（任意）<input type="date" name="dueDate" /></label>
+                <p class="muted" data-due-help>期限を空にすると「期限なし」として保存します。</p>
+                <input type="checkbox" name="repeating" hidden />
+                <label data-repeat-toggle>繰り返し<select name="repeatChoice"><option value="none">繰り返さない</option><option value="daily">日ごと</option><option value="weekly">週ごと</option><option value="monthly">月ごと</option><option value="yearly">年ごと</option></select></label>
                 <fieldset data-repeat-fields hidden disabled>
                     <legend>繰り返しの条件</legend>
                     <div class="task-fields">
                         <label>開始日<input type="date" name="startDate" required /></label>
-                        <label>周期<select name="repeatKind"><option value="daily">日ごと</option><option value="weekly">週ごと</option><option value="monthly">月ごと</option><option value="yearly">年ごと</option></select></label>
+                        <input type="hidden" name="repeatKind" value="daily" />
                         <label>間隔<input name="interval" type="number" min="1" max="52" value="1" required /></label>
                         <label data-yearly hidden>対象月<select name="month">
                             @for (var month = 1; month <= 12; month++)
@@ -157,6 +159,7 @@
                         <label><input type="checkbox" name="avoidHolidays" /> 祝日・休日を避ける</label>
                         <p class="muted">祝日が未収録の場合は、データが揃うまで予定を保留します。終了日と回数は調整前の予定を基準にし、自動スキップは回数に含めません。</p>
                     </details>
+                    <section class="repeat-preview"><h3>直近の予定</h3><div data-repeat-preview role="status"></div></section>
                 </fieldset>
                 <fieldset data-task-reminders>
                     <legend>リマインダー（最大3件）</legend>
@@ -166,7 +169,7 @@
                     <p class="muted">通知の受信は<a href="/settings/notifications" target="_blank" rel="noopener">ブラウザごとの通知設定</a>で有効にしてください。再開時に過去分を送り直すことはありません。</p>
                 </fieldset>
             </div>
-            <footer><button type="button" data-cancel-editor>キャンセル</button><button type="submit" class="button primary">保存する</button></footer>
+            <footer><button type="button" class="quiet danger" data-delete-task hidden>削除</button><button type="button" data-cancel-editor>キャンセル</button><button type="submit" class="button primary">保存する</button></footer>
         </form>
     </dialog>
 </section>

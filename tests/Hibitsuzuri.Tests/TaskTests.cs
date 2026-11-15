@@ -11,6 +11,38 @@ namespace Hibitsuzuri.Tests;
 /// <summary>認証・CSRF・SQLiteを通してタスクの操作と系列の保持を検証する</summary>
 public sealed class TaskTests
 {
+    /// <summary>予定プレビューは休日調整と未収録を示し、予定や通知を保存しない</summary>
+    [TestCase("2026-11-14", false, "2026-11-16", false)]
+    [TestCase("2035-01-01", true, null, true)]
+    public async Task PreviewUsesHolidayRulesWithoutSaving(string start, bool holidays, string? expected, bool waiting)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks/preview")
+        {
+            Content = JsonContent.Create(new TaskChange
+            {
+                StartDate = DateOnly.Parse(start),
+                Rule = new RepeatRule { Adjustment = "next", AvoidWeekends = true, AvoidHolidays = holidays, Count = 5 }
+            })
+        };
+        request.Headers.Add("RequestVerificationToken", await client.GetStringAsync("/fixture/token"));
+
+        using var response = await client.SendAsync(request);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var first = result.GetProperty("items")[0];
+        Assert.That(first.GetProperty("due").GetString(), Is.EqualTo(expected));
+        Assert.That(first.GetProperty("waiting").GetBoolean(), Is.EqualTo(waiting));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.That(await db.TaskSeries.CountAsync(), Is.Zero);
+        Assert.That(await db.TaskSlots.CountAsync(), Is.Zero);
+        Assert.That(await db.TaskRecords.CountAsync(), Is.Zero);
+    }
+
     /// <summary>不正なクエリや欠けたIDを500エラーにしない</summary>
     [TestCase("/api/tasks?query=")]
     [TestCase("/api/tasks?mode=unknown")]

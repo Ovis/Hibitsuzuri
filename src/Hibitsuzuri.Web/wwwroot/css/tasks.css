@@ -211,7 +211,7 @@
 
 .task-dialog {
     padding: 0;
-    width: min(620px, calc(100vw - 2rem));
+    width: min(640px, calc(100vw - 2rem));
     max-height: calc(100dvh - 2rem);
     border: 1px solid var(--line);
     border-radius: .8rem;
@@ -221,6 +221,7 @@
 
 .task-dialog::backdrop {
     background: #0007;
+    backdrop-filter: blur(3px);
 }
 
 .task-dialog[open], .task-dialog form {
@@ -239,27 +240,69 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem;
+    padding: 24px 28px;
 }
 
 .task-dialog header {
-    border-bottom: 1px solid var(--line);
+    border-bottom: 0;
 }
 
 .task-dialog header h2 {
     margin: 0;
     overflow-wrap: anywhere;
+    font-size: 24px;
+    font-weight: 400;
 }
 
 .task-dialog footer {
     justify-content: flex-end;
-    border-top: 1px solid var(--line);
+    border-top: 0;
 }
 
 .task-dialog-body {
-    padding: 1rem;
+    padding: 0 28px 12px;
     overflow-y: auto;
     min-height: 0;
+}
+
+.task-dialog-body > label, .task-dialog-body > fieldset {
+    margin-bottom: 22px;
+}
+
+.task-dialog-body > h3 {
+    font-size: 15px;
+    margin-bottom: 22px;
+}
+
+.task-dialog header > button {
+    border: 0;
+    background: transparent;
+}
+
+.task-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 12px 24px;
+    margin-bottom: 32px;
+}
+
+.task-facts dt {
+    color: var(--muted);
+}
+
+.task-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.repeat-preview {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+[data-delete-task] {
+    margin-right: auto;
 }
 
 .task-dialog fieldset {
@@ -395,8 +438,20 @@
     }
 
     .task-dialog {
-        width: calc(100vw - 1rem);
-        max-height: calc(100dvh - 1rem);
+        width: calc(100vw - 36px);
+        max-height: calc(100dvh - 80px);
+    }
+
+    .task-dialog form {
+        max-height: calc(100dvh - 80px);
+    }
+
+    .task-dialog header, .task-dialog footer {
+        padding: 20px 24px;
+    }
+
+    .task-dialog-body {
+        padding: 0 24px 12px;
     }
 
     [data-task-toast] {

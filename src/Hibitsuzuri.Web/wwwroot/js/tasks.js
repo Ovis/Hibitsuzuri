@@ -29,6 +29,10 @@
     let opener = null;
     let revision = 0;
     let undo = null;
+    let completedItems = [];
+    let completedGroups = [];
+    let repeatPreviewRevision = 0;
+    const rules = new Map();
     const pending = new Map();
     const reminders = window.TaskReminders;
     reminders.init(select("[data-task-reminders]"));
@@ -81,6 +85,10 @@
 
         result.set("mode", mode);
         result.set("kind", kind);
+        if (["dated", "undated"].includes(result.get("quick"))) {
+            result.set("kind", result.get("quick"));
+            result.set("quick", "all");
+        }
         result.set("page", targetPage);
         if (mode === "completed") {
             result.delete("through");
@@ -101,13 +109,28 @@
         return result;
     }
 
-    async function load() {
+    async function load(append = false) {
+        if (mode === "completed" && !append) {
+            page = 1;
+        }
+
         const requestRevision = ++revision;
         status.textContent = "読み込み中…";
         try {
             const data = await request("/api/tasks?" + parameters());
             if (requestRevision !== revision) {
                 return;
+            }
+
+            for (const [id, rule] of Object.entries(data.rules)) {
+                rules.set(id, rule);
+            }
+
+            if (mode === "completed" && !day) {
+                completedItems = append ? [...completedItems, ...data.items] : data.items;
+                completedGroups = append ? [...completedGroups, ...data.groups] : data.groups;
+                data.items = [...new Map(completedItems.map(item => [item.id, item])).values()];
+                data.groups = [...new Map(completedGroups.map(group => [group.id, group])).values()];
             }
 
             if (page > 1 && (page - 1) * 50 >= data.total) {
@@ -161,10 +184,21 @@
                 refreshCalendar(data.pendingDays);
             }
 
-            pagination(select("[data-task-pagination]"), data, number => {
-                page = number;
-                load();
-            });
+            const controls = select("[data-task-pagination]");
+            if (mode === "completed" && !day) {
+                controls.replaceChildren();
+                if (data.page * 50 < data.total) {
+                    controls.append(button("さらに表示", () => {
+                        page = data.page + 1;
+                        load(true);
+                    }));
+                }
+            } else {
+                pagination(controls, data, number => {
+                    page = number;
+                    load();
+                });
+            }
 
             const waiting = select("[data-task-waiting]");
             waiting.replaceChildren();
@@ -175,11 +209,40 @@
             }
 
             status.textContent = data.matched === 0 ? "該当するタスクはありません。"
-                : mode === "completed" && !day ? data.total + "件中 " + ((data.page - 1) * 50 + 1) + "～" + Math.min(data.page * 50, data.total) + "件を表示" : "";
+                : mode === "completed" && !day ? data.total + "件中 " + data.items.length + "件を表示" : "";
             summarize();
         } catch (error) {
             status.textContent = error.message;
         }
+    }
+
+    function taskState(item) {
+        if (item.readOnly) {
+            return "停止中";
+        }
+        if (item.completedAt) {
+            return "完了";
+        }
+        if (item.waiting) {
+            return "祝日データ待ち";
+        }
+        return item.dueDate === today ? "本日期限" : item.dueDate && item.dueDate < today ? "期限超過" : "未完了";
+    }
+
+    function repeatSummary(rule) {
+        if (!rule) {
+            return "";
+        }
+        const units = { daily: "日", weekly: "週間", monthly: "か月", yearly: "年" };
+        let text = rule.interval === 1 ? { daily: "毎日", weekly: "毎週", monthly: "毎月", yearly: "毎年" }[rule.kind]
+            : rule.interval + units[rule.kind] + "ごと";
+        if (rule.kind === "weekly") {
+            text += " " + [..."日月火水木金土"].filter((_, index) => rule.weekdays & (1 << index)).join("・");
+        }
+        if (rule.adjustment !== "none") {
+            text += " ／ 休日調整あり";
+        }
+        return text;
     }
 
     function row(item) {
@@ -192,11 +255,16 @@
         checkbox.addEventListener("change", () => complete(item, checkbox.checked, checkbox));
         const main = button("", () => showDetail(item.id), "task-row-main");
         main.append(node("span", item.title, "task-row-title"));
-        const due = item.dueDate || "期限なし";
-        const caption = (item.seriesId ? "↻ " : "") + due + " · " + item.bookName
-            + (item.readOnly ? " · 停止中" : "")
-            + (item.completedAt ? " · 完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "");
+        const due = item.dueDate ? "期限 " + item.dueDate : "期限なし";
+        const caption = due + " ・ " + taskState(item)
+            + (!day && !filterForm.elements.namedItem("bookId").value ? " ・ " + item.bookName : "");
+        if (item.completedAt) {
+            main.append(node("small", "完了 " + new Date(item.completedAt).toLocaleString("ja-JP"), "muted"));
+        }
         main.append(node("small", caption, !item.completedAt && item.dueDate && item.dueDate < today ? "task-overdue" : "muted"));
+        if (item.seriesId) {
+            main.append(node("small", "↻ " + repeatSummary(rules.get(item.segmentId)), "muted"));
+        }
         container.append(checkbox, main);
         if (!readOnly && !item.readOnly) {
             container.append(button("編集", async () => {
@@ -229,7 +297,7 @@
             if (completedRows) {
                 content.replaceChildren(...completedRows.map(row));
                 if (completedRows.length < group.count) {
-                    content.prepend(node("p", "このページには " + completedRows.length + "件を表示しています。", "muted"));
+                    content.prepend(node("p", "期間内 " + group.count + "件中 " + completedRows.length + "件を表示しています。", "muted"));
                 }
 
                 loaded = true;
@@ -239,6 +307,10 @@
             content.replaceChildren(node("p", "読み込み中…"));
             try {
                 const data = await request("/api/tasks?" + parameters(group.id, number));
+                for (const [id, rule] of Object.entries(data.rules)) {
+                    rules.set(id, rule);
+                }
+
                 content.replaceChildren(...data.items.map(row));
                 const controls = node("div", undefined, "task-pagination");
                 pagination(controls, data, expand);
@@ -263,7 +335,11 @@
             const pending = pendingDates.has(cell.dataset.calendarDate);
             const previous = cell.querySelector("[data-task-marker]");
             if (pending && !previous) {
-                const marker = node("span", "☑", "task-marker");
+                const marker = node("span", undefined, "task-marker");
+                const icon = document.querySelector('.calendar-legend .icon');
+                if (icon) {
+                    marker.append(icon.cloneNode(true));
+                }
                 marker.dataset.taskMarker = "";
                 marker.setAttribute("aria-hidden", "true");
                 cell.append(marker);
@@ -340,17 +416,25 @@
             current = await request("/api/tasks/item?id=" + encodeURIComponent(id));
             opener = document.activeElement;
             const item = current.item;
-            select("#task-detail-title").textContent = item.title;
-            select("[data-detail-meta]").textContent = item.bookName + " · " + (item.dueDate || (item.waiting ? "祝日データ待ち" : "期限なし"));
-            select("[data-detail-memo]").replaceChildren(memoText(item.memo || "メモはありません。"));
-            select("[data-detail-reminders]").textContent = reminders.describe(current.reminders) + "（" + current.timeZone + "）";
-            if (current.notificationReview) {
-                select("[data-detail-reminders]").textContent += " · 到来済みの通知は送信しません。通知が必要なら未来の時刻に変更してください。";
+            select("[data-detail-title]").textContent = item.title;
+            const facts = select("[data-detail-meta]");
+            facts.replaceChildren();
+            const addFact = (label, value) => facts.append(node("dt", label), node("dd", value));
+            addFact("日記帳", item.bookName);
+            addFact("状態", taskState(item));
+            addFact("期限", item.dueDate || (item.waiting ? "祝日データ待ち" : "期限なし"));
+            if (item.completedAt) {
+                addFact("完了日時", new Date(item.completedAt).toLocaleString("ja-JP"));
             }
-
-            select("[data-detail-repeat]").textContent = item.seriesId
-                ? "繰り返し · 元の予定日 " + item.scheduledDate + (item.completedAt ? " · 完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "")
-                : item.completedAt ? "完了 " + new Date(item.completedAt).toLocaleString("ja-JP") : "";
+            if (item.seriesId) {
+                addFact("繰り返し", repeatSummary(current.rule));
+                addFact("元の予定日", item.scheduledDate);
+            }
+            select("[data-detail-memo]").replaceChildren(memoText(item.memo || "メモはありません。"));
+            addFact("リマインダー", reminders.describe(current.reminders) + "（" + current.timeZone + "）");
+            if (current.notificationReview) {
+                addFact("通知の再確認", "到来済みの通知は送信しません。通知が必要なら未来の時刻に変更してください。");
+            }
             select("[data-edit-task]").hidden = readOnly || item.readOnly;
             select("[data-delete-task]").hidden = readOnly || item.readOnly;
             detail.showModal();
@@ -384,6 +468,8 @@
         setValue("month", Number((day || today).slice(5, 7)));
         setValue("scope", existing?.item.waiting ? "following" : "once");
         field("repeating").checked = Boolean(existing?.rule);
+        setValue("repeatChoice", existing?.rule?.kind || "none");
+        select("[data-delete-task]").hidden = !existing || readOnly || existing.item.readOnly;
         reminders.set(existing?.reminders || []);
 
         const rule = existing?.rule;
@@ -417,12 +503,17 @@
     }
 
     function updateEditor() {
+        field("repeating").checked = field("repeatChoice").value !== "none";
+        if (field("repeating").checked) {
+            setValue("repeatKind", field("repeatChoice").value);
+        }
         const once = Boolean(current?.item.seriesId) && field("scope").value === "once";
         const repeat = field("repeating").checked && !once;
         reminders.update(repeat);
         visible("[data-repeat-toggle]", !once);
         visible("[data-repeat-fields]", repeat);
         visible("[data-due-field]", !repeat);
+        visible("[data-due-help]", !repeat && !once);
         select("[data-repeat-fields]").disabled = !repeat;
         visible("[data-scope-notice]", Boolean(current?.item.seriesId) && !once);
         select("[data-scope-notice]").textContent = "今回以降の未操作の予定を置き換えます。完了・個別編集済み " + (current?.retained || 0)
@@ -438,6 +529,7 @@
         visible("[data-ending-count]", field("ending").value === "count");
         field("until").required = repeat && field("ending").value === "until";
         field("count").required = repeat && field("ending").value === "count";
+        updateRepeatPreview(repeat);
     }
 
     function closeEditor() {
@@ -471,6 +563,59 @@
         return result;
     }
 
+    function readRule() {
+        let weekdays = 0;
+        for (const checkbox of form.querySelectorAll('input[name="weekdays"]:checked')) {
+            weekdays |= 1 << Number(checkbox.value);
+        }
+
+        return {
+            kind: field("repeatKind").value,
+            interval: Number(field("interval").value),
+            weekdays: field("repeatKind").value === "weekly" ? weekdays : 62,
+            monthMode: field("monthMode").value,
+            monthDay: Number(field("monthDay").value),
+            ordinal: Number(field("ordinal").value),
+            weekday: Number(field("weekday").value),
+            month: Number(field("month").value),
+            endOffset: Number(field("endOffset").value),
+            missing: field("missing").value,
+            adjustment: field("adjustment").value,
+            avoidWeekends: field("avoidWeekends").checked,
+            avoidHolidays: field("avoidHolidays").checked,
+            until: field("ending").value === "until" ? field("until").value || null : null,
+            count: field("ending").value === "count" ? Number(field("count").value) : null
+        };
+    }
+
+    async function updateRepeatPreview(repeating) {
+        const version = ++repeatPreviewRevision;
+        const preview = select("[data-repeat-preview]");
+        if (!repeating) {
+            preview.replaceChildren();
+            return;
+        }
+
+        preview.textContent = "予定を確認しています…";
+        try {
+            const data = await request("/api/tasks/preview", { startDate: field("startDate").value || null, rule: readRule() });
+            if (version !== repeatPreviewRevision) {
+                return;
+            }
+
+            const dates = node("ul");
+            for (const item of data.items) {
+                dates.append(node("li", item.waiting ? item.scheduled + "（祝日データ待ち）"
+                    : item.due + (item.scheduled !== item.due ? "（元の予定 " + item.scheduled + "）" : "")));
+            }
+            preview.replaceChildren(data.items.length ? dates : node("p", "この条件では予定がありません。"));
+        } catch (error) {
+            if (version === repeatPreviewRevision) {
+                preview.textContent = error.message;
+            }
+        }
+    }
+
     async function save(event) {
         event.preventDefault();
         if (saving) {
@@ -491,28 +636,7 @@
             reminders: reminders.read()
         };
         if (repeating) {
-            let weekdays = 0;
-            for (const checkbox of form.querySelectorAll('input[name="weekdays"]:checked')) {
-                weekdays |= 1 << Number(checkbox.value);
-            }
-
-            body.rule = {
-                kind: field("repeatKind").value,
-                interval: Number(field("interval").value),
-                weekdays: field("repeatKind").value === "weekly" ? weekdays : 62,
-                monthMode: field("monthMode").value,
-                monthDay: Number(field("monthDay").value),
-                ordinal: Number(field("ordinal").value),
-                weekday: Number(field("weekday").value),
-                month: Number(field("month").value),
-                endOffset: Number(field("endOffset").value),
-                missing: field("missing").value,
-                adjustment: field("adjustment").value,
-                avoidWeekends: field("avoidWeekends").checked,
-                avoidHolidays: field("avoidHolidays").checked,
-                until: field("ending").value === "until" ? field("until").value || null : null,
-                count: field("ending").value === "count" ? Number(field("count").value) : null
-            };
+            body.rule = readRule();
         }
 
         if (body.scope === "following" && current?.item.seriesId
@@ -574,8 +698,12 @@
             return;
         }
 
+        if (formSnapshot() !== initialForm && !window.confirm("編集中の変更を破棄して削除へ進みますか？")) {
+            return;
+        }
+
         if (current.item.seriesId) {
-            detail.close();
+            editor.close();
             select("[data-delete-scope]").value = current.item.waiting ? "following" : "once";
             select("[data-delete-retained]").textContent = "今回以降を選んだ場合も、完了・個別編集済み " + current.retained + "件と手動スキップは保持します。";
             select("[data-delete-error]").hidden = true;
@@ -602,6 +730,7 @@
         try {
             await mutate({ ...changeBase("delete"), scope });
             detail.close();
+            editor.close();
             saving = false;
             await load();
             opener?.focus();
@@ -610,6 +739,8 @@
             status.textContent = error.message;
             select("[data-delete-error]").textContent = error.message;
             select("[data-delete-error]").hidden = false;
+            select("[data-task-error]").textContent = error.message;
+            select("[data-task-error]").hidden = false;
             return false;
         } finally {
             saving = false;
@@ -705,6 +836,9 @@
             if (category === "mode") {
                 mode = tab.dataset.mode;
                 kind = "all";
+                const overdue = filterForm.querySelector('option[value="overdue"]');
+                overdue.disabled = mode === "completed";
+                overdue.hidden = mode === "completed";
                 root.querySelectorAll("[data-kind]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.kind === "all")));
                 if (mode === "completed" && filterForm.elements.namedItem("quick").value === "overdue") {
                     filterForm.elements.namedItem("quick").value = "all";
@@ -717,6 +851,7 @@
                 }
             } else {
                 kind = tab.dataset.kind;
+                filterForm.elements.namedItem("quick").value = "all";
             }
 
             root.querySelectorAll("[data-" + category + "]").forEach(item => item.setAttribute("aria-pressed", String(item === tab)));

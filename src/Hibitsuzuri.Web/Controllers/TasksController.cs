@@ -76,6 +76,9 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             ? filtered.Where(x => x.SeriesId == null) : filtered.Where(x => x.SeriesId == filter.SeriesId);
         var total = await rows.CountAsync();
         var items = await TaskReader.Order(rows, filter.Mode == "completed").Skip((filter.Page - 1) * 50).Take(50).ToListAsync();
+        var segmentIds = items.Select(x => x.SegmentId).Where(x => x != null).Distinct().ToArray();
+        var ruleJson = await db.TaskSegments.Where(x => segmentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.RuleJson);
+        var rules = ruleJson.ToDictionary(x => x.Key, x => RepeatRule.Read(x.Value));
         var pageSeries = items.Select(x => x.SeriesId).Where(x => x != null).ToArray();
         var groups = filter.SeriesId is null && filter.Day is null
             ? await filtered.Where(x => x.SeriesId != null && (filter.Mode != "completed" || pageSeries.Contains(x.SeriesId))).GroupBy(x => x.SeriesId).Select(g => new
@@ -112,11 +115,35 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
             matched,
             groups,
             items,
+            rules,
             total,
             page = filter.Page,
             waiting,
             pendingDays,
             today
+        });
+    }
+
+    /// <summary>保存時と同じ暦計算で直近5回を示し、祝日未収録も区別する</summary>
+    [HttpPost("/api/tasks/preview")]
+    public async Task<IActionResult> Preview([FromBody] TaskChange change)
+    {
+        if (!ModelState.IsValid || change.StartDate is not { } start || change.Rule is not { } rule || !rule.Valid(start))
+        {
+            return BadRequest(new
+            {
+                message = "開始日と繰り返しの条件を確認してください。"
+            });
+        }
+
+        var state = await db.HolidayStates.SingleAsync();
+        var dates = await db.Holidays.Select(x => x.Date).ToListAsync();
+        var holidays = new HolidayCalendar(state.FirstYear, state.LastYear, dates.ToHashSet());
+        var items = RepeatCalculator.Generate(rule, start, start, DateOnly.MaxValue, holidays)
+            .Where(x => x.Due is not null || x.Waiting).Take(5).ToList();
+        return Json(new
+        {
+            items
         });
     }
 
