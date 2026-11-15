@@ -69,8 +69,9 @@ public sealed class DiaryMarkdown
             {
                 if (images?.Contains(id) == true)
                 {
-                    renderer.Write($"<button type=\"button\" class=\"image-trigger\" data-image-src=\"/images/{id}\" aria-label=\"画像を拡大\"><img src=\"/images/{id}\" alt=\"添付画像\" loading=\"lazy\" /></button>");
-                    renderer.WriteChildren(link);
+                    renderer.Write($"<button type=\"button\" class=\"image-trigger\" data-image-src=\"/images/{id}\" aria-label=\"画像を拡大\"><img src=\"/images/{id}\" alt=\"");
+                    renderer.WriteEscape(ImageDescription(link));
+                    renderer.Write("\" loading=\"lazy\" /></button>");
                 }
                 else
                 {
@@ -93,6 +94,21 @@ public sealed class DiaryMarkdown
             renderer.Write("\" target=\"_blank\" rel=\"noopener noreferrer\">");
             renderer.WriteChildren(link);
             renderer.Write("</a>");
+        }
+
+        /// <summary>装飾や入れ子の画像をHTMLにせず、alt属性に入れる説明文を取り出す</summary>
+        private static string ImageDescription(LinkInline link)
+        {
+            using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+            // 管理画像用レンダラーを再利用すると入れ子の画像も描画されるため、標準のテキスト描画を使う。
+            var renderer = new HtmlRenderer(writer)
+            {
+                EnableHtmlForInline = false,
+                EnableHtmlEscape = false
+            };
+            renderer.WriteChildren(link);
+
+            return writer.ToString();
         }
     }
 }

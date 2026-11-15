@@ -5,6 +5,20 @@ namespace Hibitsuzuri.Tests;
 /// <summary>本文とプレビューで使うMarkdownの表現と通信・スクリプト境界</summary>
 public sealed class DiaryMarkdownTests
 {
+    /// <summary>画像の説明はalt属性だけに入れ、装飾や引用符をHTMLとして出力しない</summary>
+    [TestCase("画像", "画像")]
+    [TestCase("**羊**と`空`", "羊と空")]
+    [TestCase("", "")]
+    [TestCase("羊 &amp; &quot;空&quot; <夕方>", "羊 &amp; &quot;空&quot; &lt;夕方&gt;")]
+    [TestCase("![内側](https://example.com/image.png)", "内側")]
+    public void ImageDescriptionIsOnlyRenderedAsAlt(string description, string escapedAlt)
+    {
+        const string id = "90dbedb5d7144239a3c6ead50af436dd";
+        var html = new DiaryMarkdown().Render($"![{description}](attachment:{id}) **本文**", new HashSet<string> { id });
+
+        Assert.That(html, Is.EqualTo($"<p><button type=\"button\" class=\"image-trigger\" data-image-src=\"/images/{id}\" aria-label=\"画像を拡大\"><img src=\"/images/{id}\" alt=\"{escapedAlt}\" loading=\"lazy\" /></button> <strong>本文</strong></p>\n"));
+    }
+
     /// <summary>表・コード・チェックリスト・引用を必要な拡張だけで描画する</summary>
     [Test]
     public void SupportsAgreedMarkdownSyntax()
