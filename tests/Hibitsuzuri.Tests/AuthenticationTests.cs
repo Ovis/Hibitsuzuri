@@ -22,7 +22,7 @@ public sealed class AuthenticationTests
             ["LoginId"] = "owner" + i,
             ["Password"] = AuthClient.Password,
             ["PasswordConfirmation"] = AuthClient.Password,
-            ["SetupCode"] = "test-only-initial-setup-code"
+            ["SetupCode"] = app.ReadSetupCode()
         })));
 
         Assert.That(responses.Select(x => x.StatusCode), Is.EquivalentTo(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }));
@@ -48,8 +48,8 @@ public sealed class AuthenticationTests
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(owner);
-        await AuthClient.RegisterAsync(member, "member", false);
+        var codes = await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, member, "member", false);
 
         var html = await member.GetStringAsync("/account");
 
@@ -69,7 +69,7 @@ public sealed class AuthenticationTests
     {
         await using var app = new TestApplication();
         using var setup = app.CreateBrowser();
-        await AuthClient.RegisterAsync(setup);
+        await AuthClient.RegisterAsync(app, setup);
         using var client = app.CreateBrowser();
 
         using var login = await AuthClient.LoginAsync(client, remember: remember);
@@ -99,7 +99,7 @@ public sealed class AuthenticationTests
     {
         await using var app = new TestApplication();
         using var existing = app.CreateBrowser();
-        await AuthClient.RegisterAsync(existing);
+        await AuthClient.RegisterAsync(app, existing);
         using var attacker = app.CreateBrowser();
 
         for (var i = 0; i < 5; i++)

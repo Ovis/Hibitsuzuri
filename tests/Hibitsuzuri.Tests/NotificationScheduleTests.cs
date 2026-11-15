@@ -20,7 +20,7 @@ public sealed class NotificationScheduleTests
     {
         await using var app = NotificationTests.Application(new RecordingPush());
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         await TaskTests.SaveAsync(client, new TaskChange { NotebookId = book, Title = "従来のタスク", OperationId = Guid.NewGuid().ToString() });
         await TaskTests.SaveAsync(client, new TaskChange
@@ -52,7 +52,7 @@ public sealed class NotificationScheduleTests
         var sender = new RecordingPush();
         await using var app = NotificationTests.Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await NotificationTests.EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
@@ -86,7 +86,7 @@ public sealed class NotificationScheduleTests
     {
         await using var app = NotificationTests.Application(new RecordingPush());
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var first = today.AddDays(2);
@@ -123,7 +123,7 @@ public sealed class NotificationScheduleTests
         var sender = new RecordingPush();
         await using var app = NotificationTests.Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await NotificationTests.EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var local = app.Clock.GetLocalNow();
@@ -169,7 +169,7 @@ public sealed class NotificationScheduleTests
     {
         await using var app = NotificationTests.Application(new RecordingPush());
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var begin = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime).AddDays(2);
         await using var scope = app.Services.CreateAsyncScope();
@@ -203,7 +203,7 @@ public sealed class NotificationScheduleTests
         var sender = new RecordingPush();
         await using var app = NotificationTests.Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await NotificationTests.EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var tomorrow = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime).AddDays(1);
@@ -242,7 +242,7 @@ public sealed class NotificationScheduleTests
         {
             app.PreserveData = true;
             using var client = app.CreateBrowser();
-            await AuthClient.RegisterAsync(client);
+            await AuthClient.RegisterAsync(app, client);
             key = (await TaskTests.ReadAsync(client, "/api/push/device")).GetProperty("publicKey").GetString() ?? "";
             path = app.DataPath;
             var keys = app.Services.GetRequiredService<PushKeys>();

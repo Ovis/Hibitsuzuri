@@ -26,7 +26,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush();
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var at = app.Clock.GetLocalNow().AddMinutes(2);
         var saved = await TaskTests.SaveAsync(client, new TaskChange
@@ -97,7 +97,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush();
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         var at = await AddTaskAsync(app, book, TimeSpan.FromMinutes(2));
@@ -121,7 +121,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush { Status = 503 };
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await EnableAsync(client, true);
         var book = await DiaryClient.CreateBookAsync(client);
         await AddTaskAsync(app, book, TimeSpan.FromMinutes(2));
@@ -157,7 +157,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush();
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         await AddTaskAsync(app, book, TimeSpan.FromHours(9));
@@ -182,7 +182,7 @@ public sealed class NotificationTests
     {
         await using var app = Application(new RecordingPush());
         using var current = app.CreateBrowser();
-        await AuthClient.RegisterAsync(current);
+        await AuthClient.RegisterAsync(app, current);
         await EnableAsync(current);
         using var other = app.CreateBrowser();
         using var login = await AuthClient.LoginAsync(other);
@@ -211,7 +211,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush { Status = 410 };
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await EnableAsync(client);
         var book = await DiaryClient.CreateBookAsync(client);
         await AddTaskAsync(app, book, TimeSpan.FromMinutes(2));
@@ -234,7 +234,7 @@ public sealed class NotificationTests
         var sender = new RecordingPush();
         await using var app = Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         await EnableAsync(client);
         using var other = app.CreateBrowser();
         using var login = await AuthClient.LoginAsync(other);

@@ -18,7 +18,7 @@ public sealed class NotebookLifecycleTests
         var sender = new RecordingPush();
         await using var app = NotificationTests.Application(sender);
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         await DiaryClient.SaveVersionAsync(client, book, "削除中に見えない本文");
         await NotificationTests.EnableAsync(client);
@@ -60,7 +60,7 @@ public sealed class NotebookLifecycleTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var deleted = await DiaryClient.CreateBookAsync(client, "完全削除する日記帳");
         var retained = await DiaryClient.CreateBookAsync(client, "残す日記帳");
         await using var scope = app.Services.CreateAsyncScope();
@@ -110,8 +110,8 @@ public sealed class NotebookLifecycleTests
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
-        await AuthClient.RegisterAsync(other, "other", false);
+        await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, other, "other", false);
         var book = await DiaryClient.CreateBookAsync(owner);
         using var foreign = await ChangeAsync(app, other, book, "delete");
         Assert.That(foreign.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));

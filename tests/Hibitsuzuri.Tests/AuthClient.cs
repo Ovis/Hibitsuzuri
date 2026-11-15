@@ -18,14 +18,14 @@ public static partial class AuthClient
     }
 
     /// <summary>登録画面からコードの保存確認まで進め、復旧試験用のコードを返す</summary>
-    public static async Task<string[]> RegisterAsync(HttpClient browser, string loginId = "owner", bool setup = true)
+    public static async Task<string[]> RegisterAsync(TestApplication app, HttpClient browser, string loginId = "owner", bool setup = true)
     {
         using var response = await PostAsync(browser, "/auth/register", new()
         {
             ["LoginId"] = loginId,
             ["Password"] = Password,
             ["PasswordConfirmation"] = Password,
-            ["SetupCode"] = setup ? "test-only-initial-setup-code" : ""
+            ["SetupCode"] = setup ? app.ReadSetupCode() : ""
         });
         var html = await response.Content.ReadAsStringAsync();
 

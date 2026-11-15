@@ -18,7 +18,6 @@ services:
         environment:
             TZ: ${HIBITSUZURI_TIMEZONE:-Asia/Tokyo}
             Site__PublicOrigin: ${PUBLIC_ORIGIN:?公開HTTPSオリジンを指定}
-            Authentication__SetupCode: ${HIBITSUZURI_SETUP_CODE:-}
             # DeploymentManagedは、アプリへの接続をプロキシ経由に限定できる配置で使用する。
             # KnownProxiesで使用する場合はReverseProxy__KnownProxies__0等へ接続元IPを追加する。
             ReverseProxy__Mode: ${REVERSE_PROXY_MODE:-KnownProxies}

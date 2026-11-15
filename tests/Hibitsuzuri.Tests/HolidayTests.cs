@@ -24,7 +24,7 @@ public sealed class HolidayTests
                     ? Metadata("https://www8.cao.go.jp/new.csv") : Csv(csv)))
         };
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var creation = new TaskChange
@@ -154,8 +154,8 @@ public sealed class HolidayTests
         };
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rows = await db.Holidays.AsNoTracking().OrderBy(x => x.Date).ToListAsync();

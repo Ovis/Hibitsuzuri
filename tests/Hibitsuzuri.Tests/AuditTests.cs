@@ -16,8 +16,8 @@ public sealed class AuditTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var now = app.Clock.GetUtcNow().ToUnixTimeMilliseconds();

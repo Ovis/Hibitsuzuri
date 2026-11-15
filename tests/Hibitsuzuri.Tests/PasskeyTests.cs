@@ -14,7 +14,7 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
+        await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         var options = await OptionsAsync(owner, "register");
         var credential = JsonNode.Parse(authenticator.Create(options.GetProperty("publicKeyOptions")))?.AsObject()
@@ -35,7 +35,7 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
+        await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         await RegisterKeyAsync(owner, authenticator);
 
@@ -70,7 +70,7 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
+        await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         var options = await OptionsAsync(owner, "register");
 
@@ -88,7 +88,7 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
+        await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         await RegisterKeyAsync(owner, authenticator);
         using var client = app.CreateBrowser();
@@ -111,11 +111,11 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
+        await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         await RegisterKeyAsync(owner, authenticator);
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(other, "another", false);
+        await AuthClient.RegisterAsync(app, other, "another", false);
 
         using var rename = await AuthClient.PostAsync(other, "/account/passkeys/rename", new()
         {
@@ -149,7 +149,7 @@ public sealed class PasskeyTests
     {
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(owner);
+        var codes = await AuthClient.RegisterAsync(app, owner);
         using var authenticator = new TestAuthenticator();
         await RegisterKeyAsync(owner, authenticator);
         using var login = app.CreateBrowser();

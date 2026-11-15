@@ -143,8 +143,8 @@ public sealed class ImageTests
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
-        await AuthClient.RegisterAsync(other, "other", false);
+        await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, other, "other", false);
         var book = await DiaryClient.CreateBookAsync(owner);
         var otherBook = await DiaryClient.CreateBookAsync(other);
         var draft = Guid.NewGuid().ToString();
@@ -180,7 +180,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -220,7 +220,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -271,7 +271,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -309,7 +309,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -340,7 +340,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -377,7 +377,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
@@ -422,7 +422,7 @@ public sealed class ImageTests
         using var other = app.CreateBrowser();
         if (reason == "owner")
         {
-            await AuthClient.RegisterAsync(other, "other", false);
+            await AuthClient.RegisterAsync(app, other, "other", false);
         }
 
         using var rejected = await DeleteImageAsync(reason == "owner" ? other : client, image, draft,
@@ -438,7 +438,7 @@ public sealed class ImageTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);

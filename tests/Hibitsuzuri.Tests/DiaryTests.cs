@@ -15,7 +15,7 @@ public sealed class DiaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
 
         using var read = await client.GetAsync($"/diary/{book}/2020-05-10");
@@ -57,7 +57,7 @@ public sealed class DiaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
 
         var responses = await Task.WhenAll(DiaryClient.SaveAsync(client, book, "タブA"), DiaryClient.SaveAsync(client, book, "タブB"));
@@ -97,7 +97,7 @@ public sealed class DiaryTests
         await using (first)
         {
             using var client = first.CreateBrowser();
-            await AuthClient.RegisterAsync(client);
+            await AuthClient.RegisterAsync(first, client);
             book = await DiaryClient.CreateBookAsync(client);
 
             using var save = await DiaryClient.SaveAsync(client, book, "最初の保存", operation: operation);
@@ -136,8 +136,8 @@ public sealed class DiaryTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         var book = await DiaryClient.CreateBookAsync(member);
         var version = await DiaryClient.SaveVersionAsync(member, book, "秘密の本文");
         await DiaryClient.SaveVersionAsync(member, book, "新しい秘密", version);
@@ -171,7 +171,7 @@ public sealed class DiaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
 
         foreach (var invalid in new[] { " \r\n\t", new string('あ', 100001), "本文\0" })
@@ -205,7 +205,7 @@ public sealed class DiaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
 
         app.Clock.Advance(TimeSpan.FromHours(8));
@@ -223,7 +223,7 @@ public sealed class DiaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var content = new string('あ', 99999) + "\n";
 

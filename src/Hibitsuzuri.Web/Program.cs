@@ -43,6 +43,7 @@ public partial class Program
             options.UseSqlite(services.GetRequiredService<DataDirectory>().ConnectionString));
 
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<SetupToken>();
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<OperationalLogging>();
         builder.Services.AddSingleton<ILoggerProvider>(services => services.GetRequiredService<OperationalLogging>());
@@ -121,7 +122,9 @@ public partial class Program
         await using var app = builder.Build();
         await using (var scope = app.Services.CreateAsyncScope())
         {
-            await DatabaseInitializer.InitializeAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), app.Lifetime.ApplicationStopping);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await DatabaseInitializer.InitializeAsync(db, app.Lifetime.ApplicationStopping);
+            app.Services.GetRequiredService<SetupToken>().Initialize(await db.AccountPolicies.AnyAsync(x => x.SetupCompleted));
         }
 
         app.Use(RequestSecurity.AddHeadersAsync);

@@ -14,7 +14,8 @@
         <label asp-for="PasswordConfirmation">パスワードの確認<input asp-for="PasswordConfirmation" autocomplete="new-password" required /></label>
         @if (Model.IsSetup)
         {
-            <label asp-for="SetupCode">初回セットアップ用コード<input asp-for="SetupCode" autocomplete="off" required /></label>
+            <label asp-for="SetupCode">初回登録コード<input asp-for="SetupCode" autocomplete="off" minlength="64" maxlength="64" required aria-describedby="setup-code-help" /></label>
+            <p id="setup-code-help" class="muted">起動時にデータ保存先の setup-token.txt に生成されたコード（1行目）を入力してください。有効期限は24時間です。期限切れの場合は管理者がアプリを再起動してください。</p>
         }
         <button class="button primary" type="submit">@(Model.IsSetup ? "管理者を作成" : "登録する")</button>
     </form>

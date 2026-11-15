@@ -24,7 +24,6 @@ public sealed class TestApplication : WebApplicationFactory<Program>
     } = new()
     {
         ["Site:PublicOrigin"] = "https://diary.example.test",
-        ["Authentication:SetupCode"] = "test-only-initial-setup-code",
         ["ReverseProxy:KnownProxies:0"] = "10.20.0.2"
     };
 
@@ -84,6 +83,9 @@ public sealed class TestApplication : WebApplicationFactory<Program>
             AllowAutoRedirect = false
         });
     }
+
+    /// <summary>管理者と同じく非公開ファイルから、アプリが生成した初回コードを取得する</summary>
+    public string ReadSetupCode() => File.ReadLines(Path.Combine(DataPath, "setup-token.txt")).First();
 
     /// <summary>ホストを停止してから、試験が所有する一時領域だけを削除する</summary>
     public override async ValueTask DisposeAsync()

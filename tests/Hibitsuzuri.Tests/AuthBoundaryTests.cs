@@ -21,7 +21,7 @@ public sealed class AuthBoundaryTests
             ["LoginId"] = "owner",
             ["Password"] = AuthClient.Password,
             ["PasswordConfirmation"] = AuthClient.Password,
-            ["SetupCode"] = "test-only-initial-setup-code"
+            ["SetupCode"] = app.ReadSetupCode()
         });
 
         Assert.That(registered.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -49,7 +49,7 @@ public sealed class AuthBoundaryTests
             ["LoginId"] = "owner",
             ["Password"] = AuthClient.Password,
             ["PasswordConfirmation"] = AuthClient.Password,
-            ["SetupCode"] = "test-only-initial-setup-code"
+            ["SetupCode"] = app.ReadSetupCode()
         });
 
         using var second = app.CreateBrowser();
@@ -78,7 +78,7 @@ public sealed class AuthBoundaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
 
         app.Clock.Advance(TimeSpan.FromHours(8));
         using var logout = await AuthClient.PostAsync(client, "/auth/logout");
@@ -96,7 +96,7 @@ public sealed class AuthBoundaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         using var other = app.CreateBrowser();
         using var failed = await AuthClient.LoginAsync(other, password: "wrong-password");
         using var success = await AuthClient.LoginAsync(other);
@@ -122,7 +122,7 @@ public sealed class AuthBoundaryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         using var anonymous = app.CreateBrowser();
         const string secret = "secret-that-must-not-be-echoed";
 

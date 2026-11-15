@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Models;
 using Hibitsuzuri.Web.Storage;
@@ -19,7 +17,7 @@ namespace Hibitsuzuri.Web.Controllers;
 [RequestFormLimits(ValueLengthLimit = 1024)]
 public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, SessionService sessions,
     PasswordAuthentication passwords, RecoveryCodes codes, AccountFlows flows, AuthAudit audit,
-    PasskeyCeremonies ceremonies, IConfiguration configuration) : Controller
+    PasskeyCeremonies ceremonies, SetupToken setupToken) : Controller
 {
     /// <summary>セットアップが必要なら登録へ案内し、通常はログイン画面を表示する</summary>
     [HttpGet("/auth/login")]
@@ -101,10 +99,14 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
             ModelState.AddModelError(nameof(model.Password), "パスワードは12～128文字で入力してください。");
         }
 
-        if (model.IsSetup && !MatchesSetupCode(model.SetupCode))
+        if (model.IsSetup && !setupToken.Verify(model.SetupCode))
         {
-            ModelState.AddModelError("", "初回セットアップ用コードを確認してください。未設定の場合はホストの設定が必要です。");
+            ModelState.AddModelError("", "初回登録コードを確認してください。有効期限は24時間です。期限切れの場合は管理者がアプリを再起動してください。");
         }
+
+        // 検証失敗時も、入力された秘密をHTMLのvalueへ書き戻さない。
+        ModelState.Remove(nameof(model.SetupCode));
+        model.SetupCode = null;
 
         if (!ModelState.IsValid)
         {
@@ -127,6 +129,11 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
 
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+
+        if (model.IsSetup)
+        {
+            setupToken.Invalidate();
+        }
 
         return View("Codes", new RecoveryCodesModel { Codes = freshCodes });
     }
@@ -171,13 +178,5 @@ public sealed class AuthController(AppDbContext db, UserManager<AppUser> users, 
         await sessions.SignOutAsync(HttpContext);
 
         return RedirectToAction(nameof(Login));
-    }
-
-    /// <summary>ホスト設定の初回コードを固定長のハッシュで比較する</summary>
-    private bool MatchesSetupCode(string? supplied)
-    {
-        var configured = configuration["Authentication:SetupCode"];
-        return !string.IsNullOrWhiteSpace(configured) && supplied is not null && supplied.Length <= 256
-            && CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(configured)), SHA256.HashData(Encoding.UTF8.GetBytes(supplied)));
     }
 }

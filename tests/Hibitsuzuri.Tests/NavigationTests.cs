@@ -15,8 +15,8 @@ public sealed class NavigationTests
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
-        await AuthClient.RegisterAsync(other, "other", false);
+        await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, other, "other", false);
         await DiaryClient.CreateBookAsync(owner, "available-book");
         var archived = await DiaryClient.CreateBookAsync(owner, "archived-book");
         var deleted = await DiaryClient.CreateBookAsync(owner, "deleted-book");
@@ -48,8 +48,8 @@ public sealed class NavigationTests
         await using var app = new TestApplication();
         using var owner = app.CreateBrowser();
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(owner);
-        await AuthClient.RegisterAsync(other, "other", false);
+        await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, other, "other", false);
         var book = await DiaryClient.CreateBookAsync(owner);
         var foreign = await DiaryClient.CreateBookAsync(other);
         var target = $"/calendar?month=2020-05&bookId={book}";
@@ -74,7 +74,7 @@ public sealed class NavigationTests
     {
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
-        await AuthClient.RegisterAsync(browser);
+        await AuthClient.RegisterAsync(app, browser);
         var book = await DiaryClient.CreateBookAsync(browser);
         var another = await DiaryClient.CreateBookAsync(browser, "別の日記帳");
         await DiaryClient.SaveVersionAsync(browser, book, "old-memory", date: "2019-05-10");

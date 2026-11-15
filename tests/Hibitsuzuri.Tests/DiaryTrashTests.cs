@@ -15,7 +15,7 @@ public sealed class DiaryTrashTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var version = await DiaryClient.SaveVersionAsync(client, book, "残す本文");
 
@@ -46,7 +46,7 @@ public sealed class DiaryTrashTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var operation = Guid.NewGuid().ToString();
         using var created = await DiaryClient.SaveAsync(client, book, "初版", operation: operation);
@@ -73,7 +73,7 @@ public sealed class DiaryTrashTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var other = await DiaryClient.CreateBookAsync(client, "仕事");
         var version = await DiaryClient.SaveVersionAsync(client, book, "一件目");
@@ -117,8 +117,8 @@ public sealed class DiaryTrashTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         var book = await DiaryClient.CreateBookAsync(member);
         var version = await DiaryClient.SaveVersionAsync(member, book, "初版");
         await DiaryClient.SaveVersionAsync(member, book, "改訂", version);

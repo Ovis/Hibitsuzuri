@@ -14,9 +14,9 @@ public sealed class UserManagementTests
     {
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
+        await AuthClient.RegisterAsync(app, admin);
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, member, "member", false);
 
         using var denied = await AuthClient.PostAsync(member, "/admin/users/registration", new()
         {
@@ -54,7 +54,7 @@ public sealed class UserManagementTests
     {
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
+        await AuthClient.RegisterAsync(app, admin);
         var id = await UserIdAsync(app, "owner");
 
         using var result = await ChangeAsync(admin, id, operation, "owner");
@@ -72,8 +72,8 @@ public sealed class UserManagementTests
         await using var app = new TestApplication();
         using var first = app.CreateBrowser();
         using var second = app.CreateBrowser();
-        await AuthClient.RegisterAsync(first);
-        await AuthClient.RegisterAsync(second, "second", false);
+        await AuthClient.RegisterAsync(app, first);
+        await AuthClient.RegisterAsync(app, second, "second", false);
         var firstId = await UserIdAsync(app, "owner");
         var secondId = await UserIdAsync(app, "second");
         using var grant = await ChangeAsync(first, secondId, "grant");
@@ -99,8 +99,8 @@ public sealed class UserManagementTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         var id = await UserIdAsync(app, "member");
 
         using var stopped = await ChangeAsync(admin, id, "suspend");
@@ -127,8 +127,8 @@ public sealed class UserManagementTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         var id = await UserIdAsync(app, "member");
 
         using var wrongName = await ChangeAsync(admin, id, "delete", "other");

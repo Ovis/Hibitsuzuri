@@ -436,6 +436,7 @@ FodyWeavers.xsd
 .env
 .env.*
 !.env.example
+setup-token.txt
 *.db
 *.db-shm
 *.db-wal

@@ -18,7 +18,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks/preview")
         {
             Content = JsonContent.Create(new TaskChange
@@ -52,7 +52,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
 
         using var response = await client.GetAsync(path);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -64,7 +64,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         await using var scope = app.Services.CreateAsyncScope();
@@ -101,7 +101,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var created = await SaveAsync(client, new TaskChange { NotebookId = book, Title = "停止対象", StartDate = today.AddDays(-1), Rule = new RepeatRule { Count = 5 }, OperationId = Guid.NewGuid().ToString() });
@@ -153,7 +153,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         await SaveAsync(client, new TaskChange
         {
@@ -190,8 +190,8 @@ public sealed class TaskTests
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
         using var other = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
-        await AuthClient.RegisterAsync(other, "other", false);
+        await AuthClient.RegisterAsync(app, client);
+        await AuthClient.RegisterAsync(app, other, "other", false);
         var book = await DiaryClient.CreateBookAsync(client);
         var create = new TaskChange { NotebookId = book, Title = "買い物 ＡＢＣ", Memo = "花を買う", OperationId = Guid.NewGuid().ToString() };
         var saved = await SaveAsync(client, create);
@@ -243,7 +243,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var created = await SaveAsync(client, new TaskChange
@@ -292,7 +292,7 @@ public sealed class TaskTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var result = await SaveAsync(client, new TaskChange

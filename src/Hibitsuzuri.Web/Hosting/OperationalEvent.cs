@@ -15,6 +15,12 @@ public enum OperationalEvent
     /// <summary>期限切れの認証情報や監査ログの回収失敗</summary>
     AuthCleanupFailed = 1100,
 
+    /// <summary>初回登録コードの読み取り・検証用ファイルの異常</summary>
+    SetupTokenReadFailed = 1101,
+
+    /// <summary>失効済み初回登録コードのファイル削除失敗</summary>
+    SetupTokenCleanupFailed = 1102,
+
     /// <summary>不要になった画像の回収失敗</summary>
     ImageCleanupFailed = 1200,
 

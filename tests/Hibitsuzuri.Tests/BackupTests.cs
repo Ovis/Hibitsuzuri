@@ -25,8 +25,8 @@ public sealed class BackupTests
         await using var app = new TestApplication();
         using var source = app.CreateBrowser();
         using var target = app.CreateBrowser();
-        await AuthClient.RegisterAsync(source);
-        await AuthClient.RegisterAsync(target, "target", false);
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
         await SeedAsync(app, source);
         string image;
         await using (var setup = app.Services.CreateAsyncScope())
@@ -73,8 +73,8 @@ public sealed class BackupTests
         await using var app = NotificationTests.Application(new RecordingPush());
         using var source = app.CreateBrowser();
         using var target = app.CreateBrowser();
-        await AuthClient.RegisterAsync(source);
-        await AuthClient.RegisterAsync(target, "target", false);
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
         var original = await SeedAsync(app, source);
         var empty = await DiaryClient.CreateBookAsync(target, "残す空の日記帳");
         await NotificationTests.EnableAsync(target);
@@ -143,8 +143,8 @@ public sealed class BackupTests
         await using var app = NotificationTests.Application(new RecordingPush());
         using var source = app.CreateBrowser();
         using var target = app.CreateBrowser();
-        await AuthClient.RegisterAsync(source);
-        await AuthClient.RegisterAsync(target, "target", false);
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
         await SeedAsync(app, source);
         await NotificationTests.EnableAsync(target);
         var id = await StartAsync(target);
@@ -176,8 +176,8 @@ public sealed class BackupTests
         await using var app = new TestApplication();
         using var source = app.CreateBrowser();
         using var target = app.CreateBrowser();
-        await AuthClient.RegisterAsync(source);
-        await AuthClient.RegisterAsync(target, "target", false);
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
         await DiaryClient.CreateBookAsync(source, "同名");
         var book = await DiaryClient.CreateBookAsync(target, "同名");
         var id = await StartAsync(target);
@@ -206,7 +206,7 @@ public sealed class BackupTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await SeedAsync(app, client);
         var bytes = await ExportAsync(client, "markdown", book);
         using var zip = new ZipArchive(new MemoryStream(bytes));
@@ -247,8 +247,8 @@ public sealed class BackupTests
         await using var app = new TestApplication();
         using var source = app.CreateBrowser();
         using var target = app.CreateBrowser();
-        await AuthClient.RegisterAsync(source);
-        await AuthClient.RegisterAsync(target, "target", false);
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
         var book = await DiaryClient.CreateBookAsync(source);
         await DiaryClient.SaveVersionAsync(source, book, "元の本文");
         var bytes = Damage(await ExportAsync(source), damage);
@@ -286,8 +286,8 @@ public sealed class BackupTests
         {
             using var source = first.CreateBrowser();
             using var target = first.CreateBrowser();
-            await AuthClient.RegisterAsync(source);
-            await AuthClient.RegisterAsync(target, "target", false);
+            await AuthClient.RegisterAsync(first, source);
+            await AuthClient.RegisterAsync(first, target, "target", false);
             var book = await DiaryClient.CreateBookAsync(source);
             await DiaryClient.SaveVersionAsync(source, book, "再起動後も一度だけ復元");
             id = await StartAsync(target);
@@ -328,7 +328,7 @@ public sealed class BackupTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var bytes = await ExportAsync(client);
         var id = await StartAsync(client);
         using var upload = await UploadAsync(client, id, bytes);
@@ -349,7 +349,7 @@ public sealed class BackupTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

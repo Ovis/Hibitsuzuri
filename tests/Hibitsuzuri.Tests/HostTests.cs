@@ -188,7 +188,7 @@ public sealed class HostTests
     {
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
-        await AuthClient.RegisterAsync(browser);
+        await AuthClient.RegisterAsync(app, browser);
 
         using var response = await browser.GetAsync(path);
         var body = await response.Content.ReadAsStringAsync();
@@ -259,7 +259,7 @@ public sealed class HostTests
     {
         await using var app = new TestApplication();
         using var browser = app.CreateBrowser();
-        await AuthClient.RegisterAsync(browser);
+        await AuthClient.RegisterAsync(app, browser);
         Directory.CreateDirectory(Path.Combine(app.DataPath, "images"));
         await File.WriteAllTextAsync(Path.Combine(app.DataPath, "images", "test.png"), "private-image");
         await File.WriteAllTextAsync(Path.Combine(app.DataPath, "keys", "test.xml"), "private-key");

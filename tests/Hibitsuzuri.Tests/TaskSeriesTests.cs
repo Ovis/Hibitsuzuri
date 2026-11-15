@@ -17,7 +17,7 @@ public sealed class TaskSeriesTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         await TaskTests.SaveAsync(client, new TaskChange
         {
@@ -48,7 +48,7 @@ public sealed class TaskSeriesTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var saved = await TaskTests.SaveAsync(client, new TaskChange { NotebookId = book, Title = "一度だけ", OperationId = Guid.NewGuid().ToString() });
@@ -84,7 +84,7 @@ public sealed class TaskSeriesTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var saved = await TaskTests.SaveAsync(client, new TaskChange { NotebookId = book, Title = "系列", StartDate = today, Rule = new RepeatRule { Count = 5 }, OperationId = Guid.NewGuid().ToString() });
@@ -126,7 +126,7 @@ public sealed class TaskSeriesTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var begin = today.AddDays(1);
@@ -167,7 +167,7 @@ public sealed class TaskSeriesTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
         var today = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime);
         var begin = today.AddYears(-100);

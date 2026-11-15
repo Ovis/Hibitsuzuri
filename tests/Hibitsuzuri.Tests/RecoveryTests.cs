@@ -14,7 +14,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var current = app.CreateBrowser();
-        await AuthClient.RegisterAsync(current);
+        await AuthClient.RegisterAsync(app, current);
         using var other = app.CreateBrowser();
         using var login = await AuthClient.LoginAsync(other);
 
@@ -44,7 +44,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         app.Clock.Advance(TimeSpan.FromMinutes(10));
 
         using var rejected = await AuthClient.PostAsync(client, "/account/codes", new()
@@ -76,7 +76,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var original = app.CreateBrowser();
-        var oldCodes = await AuthClient.RegisterAsync(original);
+        var oldCodes = await AuthClient.RegisterAsync(app, original);
         using var recovery = app.CreateBrowser();
 
         using var started = await StartAsync(recovery, oldCodes[0]);
@@ -125,7 +125,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var existing = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(existing);
+        var codes = await AuthClient.RegisterAsync(app, existing);
         using var recovery = app.CreateBrowser();
 
         for (var i = 0; i < 5; i++)
@@ -153,7 +153,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var original = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(original);
+        var codes = await AuthClient.RegisterAsync(app, original);
         using var recovery = app.CreateBrowser();
         using var started = await StartAsync(recovery, codes[0]);
         app.Clock.Advance(TimeSpan.FromMinutes(10));
@@ -176,7 +176,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var original = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(original);
+        var codes = await AuthClient.RegisterAsync(app, original);
         using var recovery = app.CreateBrowser();
         using var started = await StartAsync(recovery, codes[0]);
 
@@ -211,7 +211,7 @@ public sealed class RecoveryTests
     {
         await using var app = new TestApplication();
         using var original = app.CreateBrowser();
-        var codes = await AuthClient.RegisterAsync(original);
+        var codes = await AuthClient.RegisterAsync(app, original);
         using var first = app.CreateBrowser();
         using var second = app.CreateBrowser();
 

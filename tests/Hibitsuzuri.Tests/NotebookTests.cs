@@ -15,8 +15,8 @@ public sealed class NotebookTests
         await using var app = new TestApplication();
         using var admin = app.CreateBrowser();
         using var member = app.CreateBrowser();
-        await AuthClient.RegisterAsync(admin);
-        await AuthClient.RegisterAsync(member, "member", false);
+        await AuthClient.RegisterAsync(app, admin);
+        await AuthClient.RegisterAsync(app, member, "member", false);
         await DiaryClient.CreateBookAsync(admin);
         var book = await DiaryClient.CreateBookAsync(member);
 
@@ -49,7 +49,7 @@ public sealed class NotebookTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var first = await DiaryClient.CreateBookAsync(client, "生活");
         var second = await DiaryClient.CreateBookAsync(client, "仕事");
         await using var scope = app.Services.CreateAsyncScope();
@@ -91,7 +91,7 @@ public sealed class NotebookTests
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var first = await DiaryClient.CreateBookAsync(client, "生活");
         var archived = await DiaryClient.CreateBookAsync(client, "以前の記録");
         var last = await DiaryClient.CreateBookAsync(client, "仕事");
@@ -123,7 +123,7 @@ public sealed class NotebookTests
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
         using var otherBrowser = app.CreateBrowser();
-        await AuthClient.RegisterAsync(client);
+        await AuthClient.RegisterAsync(app, client);
         var first = await DiaryClient.CreateBookAsync(client, "生活");
         var second = await DiaryClient.CreateBookAsync(client, "仕事");
 
@@ -134,7 +134,7 @@ public sealed class NotebookTests
         using var otherHome = await otherBrowser.GetAsync("/");
 
         using var logout = await AuthClient.PostAsync(client, "/auth/logout");
-        await AuthClient.RegisterAsync(client, "member", false);
+        await AuthClient.RegisterAsync(app, client, "member", false);
         using var memberHome = await client.GetAsync("/");
 
         Assert.Multiple(() =>
