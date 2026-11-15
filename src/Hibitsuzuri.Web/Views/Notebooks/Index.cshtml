@@ -18,30 +18,13 @@
         <p>最初の日記帳を作成してください。</p>
     }
 
-    @foreach (var book in visibleBooks)
-    {
-        <article class="book-row notebook-row">
-            <div>
-                <h2><partial name="_Icon" model='"book"' />@book.Name</h2>
-                <p class="muted">@(book.Archived ? "アーカイブ" : "利用中")@(book.TasksPausedOn is null ? "" : "・タスク停止中")</p>
-                <p class="muted">テンプレート：@(string.IsNullOrEmpty(book.Template) ? "未設定" : "設定あり")</p>
-            </div>
-            <div class="actions book-actions">
-                <a class="button" href="/diary/@book.Id">開く</a>
-                <a class="button quiet" href="/books/@book.Id#name">名前変更</a>
-                <a class="button quiet" href="/books/@book.Id#template">テンプレート</a>
-                <a class="button quiet" href="/books/@book.Id#archive">@(book.Archived ? "アーカイブを解除" : "アーカイブ")</a>
-                <a class="button quiet danger" href="/books/@book.Id#delete-book">削除</a>
-                <a class="button quiet" href="/diary/@book.Id/trash">日記のゴミ箱</a>
-                <form method="post" action="/books/@book.Id/move">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == visibleBooks[0])">↑</button>
-                    <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == visibleBooks[^1])">↓</button>
-                </form>
-            </div>
-        </article>
-    }
+    <partial name="_NotebookRows" model="visibleBooks.Where(x => !x.Archived).ToList()" />
 </section>
+
+<details class="spacer archived-notebooks">
+    <summary>アーカイブ（@visibleBooks.Count(x => x.Archived)）</summary>
+    <section class="paper spacer"><partial name="_NotebookRows" model="visibleBooks.Where(x => x.Archived).ToList()" /></section>
+</details>
 
 <details class="paper settings-panel spacer">
     <summary>日記帳のゴミ箱（@Model.Count(x => x.DeletedAt is not null)）</summary>

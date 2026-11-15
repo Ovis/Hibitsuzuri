@@ -85,6 +85,37 @@ public sealed class NotebookTests
         });
     }
 
+    /// <summary>通常一覧の並べ替えはアーカイブを飛び越し、アーカイブ内の順序を変えない</summary>
+    [Test]
+    public async Task MoveKeepsArchivedNotebookPositions()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var first = await DiaryClient.CreateBookAsync(client, "生活");
+        var archived = await DiaryClient.CreateBookAsync(client, "以前の記録");
+        var last = await DiaryClient.CreateBookAsync(client, "仕事");
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var book = await db.Notebooks.SingleAsync(x => x.Id == archived);
+        book.Archived = true;
+        await db.SaveChangesAsync();
+        var archivedPosition = book.Position;
+
+        using var moved = await AuthClient.PostAsync(client, $"/books/{last}/move", new()
+        {
+            ["direction"] = "-1"
+        });
+        var books = await db.Notebooks.AsNoTracking().OrderBy(x => x.Position).ToListAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(moved.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+            Assert.That(books.Select(x => x.Id), Is.EqualTo(new[] { last, archived, first }));
+            Assert.That(books.Single(x => x.Id == archived).Position, Is.EqualTo(archivedPosition));
+        });
+    }
+
     /// <summary>選択記憶はブラウザとユーザーで分け、無効な選択は先頭に戻す</summary>
     [Test]
     public async Task LastNotebookIsLocalToBrowserAndUser()

@@ -8,7 +8,8 @@
     <h1>日記帳の設定</h1>
 </header>
 
-<form class="account-form paper" method="post" action="/books/@Model.Id">
+<form id="book-name-form" class="account-form paper" method="post" action="/books/@Model.Id">
+    <h2>日記帳の名前を変更</h2>
     @Html.AntiForgeryToken()
     <div asp-validation-summary="All" class="notice" role="alert"></div>
     <input type="hidden" name="version" value="@Model.Version" />
@@ -16,7 +17,17 @@
     <label for="name">日記帳名</label>
     <input id="name" name="name" value="@Model.Name" required maxlength="200" />
 
-    <label for="template">新規日記のテンプレート（Markdown）</label>
+    <textarea name="template" hidden>
+@Model.Template</textarea>
+    <button class="button primary" type="submit">保存する</button>
+</form>
+
+<form id="book-template-form" class="account-form paper spacer" method="post" action="/books/@Model.Id">
+    <h2>新規日記のテンプレート</h2>
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="version" value="@Model.Version" />
+    <input type="hidden" name="name" value="@Model.Name" />
+    <label for="template">テンプレート（Markdown）</label>
     <p class="muted">100,000文字以内。保存済みの日記や下書きには適用しません。</p>
     <textarea id="template" name="template" rows="14">
 @Model.Template</textarea>
@@ -27,7 +38,7 @@
     </div>
 </form>
 
-<section class="paper settings-panel spacer">
+<section id="book-tasks" class="paper settings-panel spacer">
     <h2>タスクの停止</h2>
     <p>停止中は、この日記帳のタスクが閲覧のみになり、タスクの通知も止まります。日記は引き続き作成・編集できます。</p>
     <p>タスクの再開時は、停止期間に到来した未操作の繰り返しをスキップし、以前の未完了や操作済みの回は残します。</p>
@@ -44,7 +55,7 @@
     <p>アーカイブした日記帳は通常の選択肢から外れます。日記帳一覧から開いて、日記の閲覧・編集ができます。</p>
     @if (Model.Archived)
     {
-        <p>アーカイブを解除すると、停止中のタスクも再開します。停止期間中の繰り返しの扱いは、上の「タスクの停止」で確認できます。</p>
+        <p>アーカイブを解除すると、停止中のタスクも再開します。停止期間に到来した未操作の繰り返しをスキップし、以前の未完了や操作済みの回は残します。</p>
     }
     else
     {

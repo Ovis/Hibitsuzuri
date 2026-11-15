@@ -100,6 +100,8 @@ public sealed class NotebooksController(AppDbContext database, TimeProvider cloc
     public async Task<IActionResult> Move(string id, int direction)
     {
         var books = await Books().ToListAsync();
+        var selected = books.FirstOrDefault(x => x.Id == id);
+        books = books.Where(x => x.Archived == selected?.Archived).ToList();
         var index = books.FindIndex(x => x.Id == id);
         if (index < 0)
         {
@@ -114,11 +116,8 @@ public sealed class NotebooksController(AppDbContext database, TimeProvider cloc
         var target = index + direction;
         if (target >= 0 && target < books.Count)
         {
-            (books[index], books[target]) = (books[target], books[index]);
-            for (var i = 0; i < books.Count; i++)
-            {
-                books[i].Position = i;
-            }
+            // 折りたたんだアーカイブ一覧の位置を動かさず、同じ一覧内だけを入れ替える。
+            (books[index].Position, books[target].Position) = (books[target].Position, books[index].Position);
 
             await database.SaveChangesAsync();
         }

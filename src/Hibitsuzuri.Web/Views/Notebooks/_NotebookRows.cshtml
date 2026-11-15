@@ -1,0 +1,30 @@
+@using System.Security.Claims
+@model IReadOnlyList<Hibitsuzuri.Web.Diary.Notebook>
+@{
+    var owner = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var selected = Context.Request.Cookies[$"Hibitsuzuri.Book.{owner}"];
+}
+@foreach (var book in Model)
+{
+    <article class="book-row notebook-row">
+        <div>
+            <h2><partial name="_Icon" model='"book"' />@book.Name</h2>
+            <p class="muted">@(book.Archived ? "アーカイブ" : "利用中")@(book.TasksPausedOn is null ? "" : "・タスク停止中")@(book.Id == selected ? " ・ 選択中" : "")</p>
+            <p class="muted">テンプレート：@(string.IsNullOrEmpty(book.Template) ? "未設定" : "設定あり")</p>
+        </div>
+        <div class="actions book-actions">
+            <a class="button" href="/diary/@book.Id">開く</a>
+            <a class="button quiet" href="/books/@book.Id#name" data-page-dialog data-dialog-target="#book-name-form">名前変更</a>
+            <a class="button quiet" href="/books/@book.Id#template" data-page-dialog data-dialog-target="#book-template-form">テンプレート</a>
+            <a class="button quiet" href="/books/@book.Id#archive" data-page-dialog data-dialog-target="#archive">@(book.Archived ? "アーカイブを解除" : "アーカイブ")</a>
+            <a class="button quiet danger" href="/books/@book.Id#delete-book" data-page-dialog data-dialog-target="#delete-book">削除</a>
+            <a class="button quiet" href="/books/@book.Id#book-tasks" data-page-dialog data-dialog-target="#book-tasks">タスクの停止・再開</a>
+            <a class="button quiet" href="/diary/@book.Id/trash">日記のゴミ箱</a>
+            <form method="post" action="/books/@book.Id/move">
+                @Html.AntiForgeryToken()
+                <button type="submit" name="direction" value="-1" aria-label="@(book.Name + "を上へ")" disabled="@(book == Model[0])">↑</button>
+                <button type="submit" name="direction" value="1" aria-label="@(book.Name + "を下へ")" disabled="@(book == Model[^1])">↓</button>
+            </form>
+        </div>
+    </article>
+}
