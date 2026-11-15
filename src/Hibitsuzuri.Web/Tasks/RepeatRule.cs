@@ -69,14 +69,64 @@ public sealed class RepeatRule
     public bool NeedsHolidays => Adjustment != "none" && AvoidHolidays;
 
     /// <summary>画面とサーバーの両方で使える保存前の条件検証</summary>
-    public bool Valid(DateOnly start) => Kind is "daily" or "weekly" or "monthly" or "yearly"
-        && Interval is >= 1 and <= 52 && Weekdays is >= 1 and <= 127
-        && MonthMode is "day" or "weekday" or "end" && MonthDay is >= 1 and <= 31
-        && (Ordinal is >= 1 and <= 5 || Ordinal == -1) && Weekday is >= 0 and <= 6
-        && Month is >= 1 and <= 12 && EndOffset is >= 0 and <= 27
-        && Missing is "skip" or "last" && Adjustment is "none" or "skip" or "previous" or "next"
-        && (Until is null || Until >= start) && (Count is null || Count is >= 1 and <= 10000)
-        && (Count is null || Until is null);
+    public bool Valid(DateOnly start) => ValidationError(start) is null;
+
+    /// <summary>保存とプレビューで同じ入力条件を検証し、修正すべき項目を伝える</summary>
+    public string? ValidationError(DateOnly start)
+    {
+        if (Kind is not ("daily" or "weekly" or "monthly" or "yearly"))
+        {
+            return "繰り返しの種類を選択してください。";
+        }
+        if (Interval is < 1 or > 52)
+        {
+            return "繰り返しの間隔は1～52で入力してください。";
+        }
+        if (Weekdays is < 1 or > 127)
+        {
+            return "繰り返す曜日を1つ以上選択してください。";
+        }
+
+        if (MonthMode is not ("day" or "weekday" or "end"))
+        {
+            return "月の指定方法を選択してください。";
+        }
+        if (MonthDay is < 1 or > 31)
+        {
+            return "日付は1～31で入力してください。";
+        }
+        if ((Ordinal is < 1 or > 5) && Ordinal != -1 || Weekday is < 0 or > 6)
+        {
+            return "何番目の曜日かと曜日を選択してください。";
+        }
+        if (Month is < 1 or > 12)
+        {
+            return "対象月は1～12月から選択してください。";
+        }
+        if (EndOffset is < 0 or > 27)
+        {
+            return "月末の何日前かを0～27で入力してください。";
+        }
+
+        if (Missing is not ("skip" or "last") || Adjustment is not ("none" or "skip" or "previous" or "next"))
+        {
+            return "存在しない日と休日の扱いを選択してください。";
+        }
+        if (Until < start)
+        {
+            return "終了日は開始日以降の日付を指定してください。";
+        }
+        if (Count is < 1 or > 10000)
+        {
+            return "繰り返しの回数は1～10,000で入力してください。";
+        }
+        if (Count is not null && Until is not null)
+        {
+            return "終了日と回数は、どちらか一方を指定してください。";
+        }
+
+        return null;
+    }
 
     /// <summary>永続化したルールを読み、破損を既定値で隠さない</summary>
     public static RepeatRule Read(string json) => JsonSerializer.Deserialize<RepeatRule>(json) ?? throw new InvalidDataException("繰り返し設定を読み取れません。");

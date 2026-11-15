@@ -88,6 +88,8 @@
     <dialog class="task-dialog" data-task-delete aria-labelledby="task-delete-title">
         <header><h2 id="task-delete-title">削除する範囲</h2><button type="button" data-close-delete aria-label="削除を閉じる">×</button></header>
         <div class="task-dialog-body">
+            <p class="task-delete-target" data-delete-target></p>
+            <p class="muted" data-delete-date></p>
             <p data-delete-error role="alert" class="notice" hidden></p>
             <label>削除する範囲<select data-delete-scope><option value="once">今回のみ（スキップ）</option><option value="following">今回以降</option></select></label>
             <p data-delete-retained></p>

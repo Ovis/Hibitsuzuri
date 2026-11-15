@@ -1,6 +1,14 @@
-document.querySelectorAll('[data-book-switch]').forEach(select => {
-    select.addEventListener('change', () => {
-        window.location.assign(select.value);
+document.querySelectorAll('[data-book-picker]').forEach(picker => {
+    document.addEventListener('click', event => {
+        if (!picker.contains(event.target)) {
+            picker.open = false;
+        }
+    });
+    picker.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            picker.open = false;
+            picker.querySelector('summary').focus();
+        }
     });
 });
 

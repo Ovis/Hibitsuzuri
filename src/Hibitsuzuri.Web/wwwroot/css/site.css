@@ -261,15 +261,110 @@ svg {
     padding: 0 8px;
 }
 
-.book-switch label {
+.book-switch-label {
+    display: block;
+    margin-bottom: 8px;
     font-size: 11px;
     color: var(--muted);
 }
 
-.book-switch select {
-    margin-top: 2px;
-    background: transparent;
+.book-picker {
+    position: relative;
     font-size: 14px;
+}
+
+.book-picker > summary, .book-picker-empty {
+    min-height: 44px;
+    padding: 11px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.book-picker > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.book-picker > summary::-webkit-details-marker {
+    display: none;
+}
+
+.book-picker > summary > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.book-picker > summary::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg);
+    flex: 0 0 7px;
+    margin-top: -4px;
+}
+
+.book-picker[open] > summary {
+    border-color: var(--accent);
+}
+
+.book-picker-options {
+    position: absolute;
+    z-index: 8;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 40vh;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    box-shadow: 0 8px 24px #00000014;
+}
+
+.book-picker-options a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 10px;
+    border-radius: 5px;
+    color: var(--ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.book-picker-options a:hover, .book-picker-options a[aria-current] {
+    background: var(--soft);
+}
+
+.book-picker-empty {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.notebook-empty {
+    padding: 28px 32px;
+}
+
+.notebook-empty p {
+    margin: 0;
+}
+
+.task-delete-target {
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
 .sidebar-bottom {
@@ -1767,10 +1862,6 @@ input[role="switch"]:checked::before {
     .mobile-header .brand-mark {
         width: 24px;
         height: 28px;
-    }
-
-    .mobile-header select {
-        background: transparent;
     }
 
     .mobile-nav {

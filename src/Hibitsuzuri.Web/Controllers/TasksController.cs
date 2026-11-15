@@ -88,7 +88,8 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
                 overdue = g.Count(x => x.CompletedAt == null && x.DueDate < today),
                 next = g.Min(x => x.DueDate >= today ? x.DueDate : null),
                 first = g.Min(x => x.DueDate),
-                title = g.OrderByDescending(x => x.ScheduledDate).Select(x => x.Title).First(),
+                title = g.OrderByDescending(x => x.SegmentStartDate).ThenBy(x => x.SegmentCutoff != null)
+                    .ThenByDescending(x => x.SegmentCutoff).ThenBy(x => x.SegmentId).Select(x => x.CommonTitle).First(),
                 bookName = g.Select(x => x.BookName).First()
             }).ToListAsync() : [];
         var waiting = await (from slot in db.TaskSlots
@@ -132,7 +133,8 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
         {
             return BadRequest(new
             {
-                message = "開始日と繰り返しの条件を確認してください。"
+                message = change.StartDate is null ? "開始日を入力してください。"
+                    : change.Rule?.ValidationError(change.StartDate.Value) ?? "開始日と繰り返しの条件を確認してください。"
             });
         }
 
@@ -239,13 +241,19 @@ public sealed class TasksController(AppDbContext db, TaskReader reader, TaskSche
 
         change.Title = change.Title.Trim();
         change.Memo = DiaryMarkdown.NormalizeLineEndings(change.Memo);
-        if (change.Action == "save" && (!AuthRules.ValidText(change.Title, 1, 200) || !AuthRules.ValidText(change.Memo, 0, 10000)
-            || (change.Rule is not null && (change.StartDate is null || !change.Rule.Valid(change.StartDate.Value)))))
+        if (change.Action == "save")
         {
-            return BadRequest(new
+            var validationError = !AuthRules.ValidText(change.Title, 1, 200) ? "件名は1～200文字で入力してください。"
+                : !AuthRules.ValidText(change.Memo, 0, 10000) ? "メモは10,000文字以内で入力してください。"
+                : change.Rule is null ? null
+                : change.StartDate is null ? "開始日を入力してください。" : change.Rule.ValidationError(change.StartDate.Value);
+            if (validationError is not null)
             {
-                message = "件名は1～200文字、メモは10,000文字以内で、繰り返し条件と開始日を確認してください。"
-            });
+                return BadRequest(new
+                {
+                    message = validationError
+                });
+            }
         }
 
         if (row is null && change.Action != "save")

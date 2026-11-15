@@ -33,6 +33,21 @@ public sealed class TaskRow
     /// <summary>表示する件名</summary>
     public string Title { get; set; } = "";
 
+    /// <summary>個別変更の件名と分離した、系列見出し用の共通名</summary>
+    public string CommonTitle { get; set; } = "";
+
+    /// <summary>表示対象の中で最新の繰り返し設定を選ぶための適用開始日</summary>
+    public DateOnly? SegmentStartDate
+    {
+        get; set;
+    }
+
+    /// <summary>同じ開始日に設定を変更した場合に、終了した旧設定を区別する境界</summary>
+    public DateOnly? SegmentCutoff
+    {
+        get; set;
+    }
+
     /// <summary>プレーンテキストの補足</summary>
     public string Memo { get; set; } = "";
 

@@ -74,7 +74,7 @@
         return result;
     }
 
-    function parameters(seriesId, targetPage = page) {
+    function parameters(seriesId, targetPage = page, targetMode = mode) {
         const result = new URLSearchParams(filterForm ? new FormData(filterForm) : { bookId: root.dataset.book, day });
         // 未入力の日付は空文字のまま送ると、日付型の検証エラーになる。
         for (const [key, value] of [...result.entries()]) {
@@ -83,14 +83,14 @@
             }
         }
 
-        result.set("mode", mode);
+        result.set("mode", targetMode);
         result.set("kind", kind);
         if (["dated", "undated"].includes(result.get("quick"))) {
             result.set("kind", result.get("quick"));
             result.set("quick", "all");
         }
         result.set("page", targetPage);
-        if (mode === "completed") {
+        if (targetMode === "completed") {
             result.delete("through");
             if (result.get("period") !== "custom") {
                 result.delete("start");
@@ -117,7 +117,11 @@
         const requestRevision = ++revision;
         status.textContent = "読み込み中…";
         try {
-            const data = await request("/api/tasks?" + parameters());
+            // 完了履歴の操作や検索後も、未完了タブを開かずに同じ条件の件数を更新する。
+            const [data, pendingData] = await Promise.all([
+                request("/api/tasks?" + parameters()),
+                mode === "completed" && !day ? request("/api/tasks?" + parameters(undefined, 1, "pending")) : null
+            ]);
             if (requestRevision !== revision) {
                 return;
             }
@@ -140,8 +144,8 @@
             }
 
             const expanded = new Set([...list.querySelectorAll("[data-series-id][open]")].map(element => element.dataset.seriesId));
-            if (mode === "pending" && select("[data-pending-count]")) {
-                select("[data-pending-count]").textContent = data.matched;
+            if (select("[data-pending-count]")) {
+                select("[data-pending-count]").textContent = (pendingData || data).matched;
             }
 
             list.replaceChildren();
@@ -704,6 +708,9 @@
 
         if (current.item.seriesId) {
             editor.close();
+            select("[data-delete-target]").textContent = current.item.title;
+            select("[data-delete-date]").textContent = "対象の期限：" + (current.item.dueDate || "期限なし")
+                + (current.item.scheduledDate ? " ／ 元の予定日：" + current.item.scheduledDate : "");
             select("[data-delete-scope]").value = current.item.waiting ? "following" : "once";
             select("[data-delete-retained]").textContent = "今回以降を選んだ場合も、完了・個別編集済み " + current.retained + "件と手動スキップは保持します。";
             select("[data-delete-error]").hidden = true;
@@ -722,7 +729,7 @@
         const message = scope === "following"
             ? "今回以降の未操作の予定を削除します。完了・個別編集済み " + current.retained + "件と手動スキップは保持します。"
             : current.item.seriesId ? "今回の予定をスキップします。元に戻せません。" : "このタスクを完全に削除します。元に戻せません。";
-        if (!window.confirm(message)) {
+        if (!window.confirm(current.item.title + "\n対象の期限：" + (current.item.dueDate || "期限なし") + "\n\n" + message)) {
             return false;
         }
 

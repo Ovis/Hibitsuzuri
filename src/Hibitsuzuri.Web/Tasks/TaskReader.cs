@@ -12,6 +12,8 @@ public sealed class TaskReader(AppDbContext db, TaskSchedule schedule, TimeProvi
     {
         var records = from task in db.TaskRecords.AsNoTracking()
                       join book in db.Notebooks on task.NotebookId equals book.Id
+                      join segment in db.TaskSegments on task.SegmentId equals segment.Id into segments
+                      from segment in segments.DefaultIfEmpty()
                       where book.UserId == owner && !task.Skipped
                       select new TaskRow
                       {
@@ -19,6 +21,9 @@ public sealed class TaskReader(AppDbContext db, TaskSchedule schedule, TimeProvi
                           NotebookId = book.Id,
                           BookName = book.Name,
                           Title = task.Title,
+                          CommonTitle = segment == null ? task.Title : segment.Title,
+                          SegmentStartDate = segment == null ? null : segment.StartDate,
+                          SegmentCutoff = segment == null ? null : segment.Cutoff,
                           Memo = task.Memo,
                           SearchText = task.SearchText,
                           DueDate = task.DueDate,
@@ -47,6 +52,9 @@ public sealed class TaskReader(AppDbContext db, TaskSchedule schedule, TimeProvi
                         NotebookId = book.Id,
                         BookName = book.Name,
                         Title = segment.Title,
+                        CommonTitle = segment.Title,
+                        SegmentStartDate = segment.StartDate,
+                        SegmentCutoff = segment.Cutoff,
                         Memo = segment.Memo,
                         SearchText = segment.SearchText,
                         DueDate = slot.DueDate,
