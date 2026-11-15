@@ -149,9 +149,32 @@ test('サーバーが別の下書きの保持を検出した場合は理由を�
     assert.match(view.notices.at(-1), /別の下書き/);
 });
 
-test('保存済み本文や履歴等で保持する画像には実体の削除操作を表示しない', async t => {
+test('保存済み画像は通常削除を表示せず、影響を確認した完全削除だけを許す', async t => {
     const view = await editor(t, { saved: true });
 
     assert.equal(view.button('画像を削除'), undefined);
     assert.ok(view.button('本文から外す'));
+    await view.button('完全削除').click();
+
+    assert.match(view.confirmations[0], /編集履歴・テンプレート・下書き/);
+    assert.match(view.confirmations[0], /元に戻せません/);
+    assert.deepEqual(view.requests[0].fields, {
+        draftId, content: '', confirmed: 'true', permanently: 'true', referencesConfirmed: 'true'
+    });
+    assert.equal(view.list.children.length, 0);
+    assert.match(view.notices.at(-1), /完全削除しました/);
+});
+
+test('完全削除でも編集中の参照と確認キャンセルを尊重する', async t => {
+    const view = await editor(t, { saved: true, confirm: false });
+    view.content.value = `![画像](attachment:${imageId})`;
+    await view.button('完全削除').click();
+    assert.equal(view.confirmations.length, 0);
+    assert.equal(view.requests.length, 0);
+
+    view.content.value = '';
+    await view.button('完全削除').click();
+    assert.equal(view.confirmations.length, 1);
+    assert.equal(view.requests.length, 0);
+    assert.equal(view.list.children.length, 1);
 });

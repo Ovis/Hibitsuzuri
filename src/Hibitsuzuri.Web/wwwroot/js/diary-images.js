@@ -76,46 +76,9 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
 
                 row.append(thumbnail, label, add, remove);
                 if (image.expiresAt !== null && image.expiresAt !== undefined) {
-                    const discard = document.createElement('button');
-                    discard.type = 'button';
-                    discard.textContent = '画像を削除';
-                    discard.addEventListener('click', async () => {
-                        if (isBusy()) {
-                            return;
-                        }
-
-                        if (content.value.includes(`attachment:${image.id}`)) {
-                            showNotice('先に「本文から外す」で、この画像を本文から外してください。');
-                            return;
-                        }
-
-                        if (!window.confirm(`「${image.name}」を削除しますか？ この画像は元に戻せません。`)) {
-                            return;
-                        }
-
-                        setBusy(true);
-                        try {
-                            // 先行する下書き更新を確定してから、サーバーでも最新の参照と所有者を確認する。
-                            await queue;
-                            const response = await post(`/api/images/${image.id}/delete`,
-                                { draftId, content: content.value, confirmed: 'true' }, AbortSignal.timeout(10000));
-                            const result = await response.json();
-                            if (!response.ok) {
-                                showNotice(result.message || '画像を削除できませんでした。');
-                            } else if (result.deleted === true) {
-                                showNotice('未使用の画像を削除しました。');
-                            } else {
-                                throw new Error('delete-result');
-                            }
-                        } catch {
-                            showNotice('画像の削除結果を確認できません。接続と添付一覧を確認してください。');
-                        } finally {
-                            setBusy(false);
-                            await refresh();
-                        }
-                    });
-                    row.append(discard);
+                    row.append(deleteButton(image, false));
                 }
+                row.append(deleteButton(image, true));
 
                 list.append(row);
             }
@@ -125,6 +88,57 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
         } catch {
             status.textContent = '画像一覧を取得できません。接続とログイン状態を確認してください。本文は保持しています。';
         }
+    }
+
+    function deleteButton(image, permanently) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = permanently ? '完全削除' : '画像を削除';
+        button.addEventListener('click', async () => {
+            if (isBusy()) {
+                return;
+            }
+
+            if (content.value.includes(`attachment:${image.id}`)) {
+                showNotice('先に「本文から外す」で、この画像を本文から外してください。');
+                return;
+            }
+
+            const confirmation = permanently
+                ? `「${image.name}」を完全削除しますか？\n他の日記・編集履歴・テンプレート・下書きで使用中でも削除します。画像のコードは残り、画像が見つからない表示になります。編集をキャンセルしても、履歴を復元しても元に戻せません。`
+                : `「${image.name}」を削除しますか？ この画像は元に戻せません。`;
+            if (!window.confirm(confirmation)) {
+                return;
+            }
+
+            setBusy(true);
+            try {
+                // 先行する下書き更新を確定してから、確認済みの削除方式を送信する。
+                await queue;
+                const fields = { draftId, content: content.value, confirmed: 'true' };
+                if (permanently) {
+                    fields.permanently = 'true';
+                    fields.referencesConfirmed = 'true';
+                }
+
+                const response = await post(`/api/images/${image.id}/delete`, fields, AbortSignal.timeout(10000));
+                const result = await response.json();
+                if (!response.ok) {
+                    showNotice(result.message || '画像を削除できませんでした。');
+                } else if (result.deleted === true) {
+                    showNotice(permanently ? '画像を完全削除しました。日記の編集をキャンセルしても画像は戻りません。' : '未使用の画像を削除しました。');
+                } else {
+                    throw new Error('delete-result');
+                }
+            } catch {
+                showNotice('画像の削除結果を確認できません。接続と添付一覧を確認してください。');
+            } finally {
+                setBusy(false);
+                await refresh();
+            }
+        });
+
+        return button;
     }
 
     function renew(text, id = draftId, discard = false) {

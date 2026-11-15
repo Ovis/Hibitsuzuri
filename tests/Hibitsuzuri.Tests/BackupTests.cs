@@ -18,6 +18,54 @@ namespace Hibitsuzuri.Tests;
 /// <summary>実SQLite・実画像・HTTPで個人バックアップの移行と失敗境界を検証する</summary>
 public sealed class BackupTests
 {
+    /// <summary>完全削除済み画像の参照を含む本文も移せるが、画像実体はバックアップから復活しない</summary>
+    [Test]
+    public async Task DeletedImageReferencesRoundTripWithoutRestoringImage()
+    {
+        await using var app = new TestApplication();
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(source);
+        await AuthClient.RegisterAsync(target, "target", false);
+        await SeedAsync(app, source);
+        string image;
+        await using (var setup = app.Services.CreateAsyncScope())
+        {
+            image = await setup.ServiceProvider.GetRequiredService<AppDbContext>().DiaryImages.Select(x => x.Id).SingleAsync();
+        }
+
+        using var deleted = await AuthClient.PostAsync(source, $"/api/images/{image}/delete", new()
+        {
+            ["draftId"] = Guid.NewGuid().ToString(),
+            ["content"] = "",
+            ["confirmed"] = "true",
+            ["permanently"] = "true",
+            ["referencesConfirmed"] = "true"
+        });
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var bytes = await ExportAsync(source);
+        using (var zip = new ZipArchive(new MemoryStream(bytes)))
+        {
+            Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)), Is.False);
+        }
+
+        var transfer = await StartAsync(target);
+        using var upload = await UploadAsync(target, transfer, bytes);
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+        using var restored = await ConfirmAsync(target, transfer);
+        Assert.That(restored.StatusCode, Is.EqualTo(HttpStatusCode.OK), await restored.Content.ReadAsStringAsync());
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Where(x => x.UserName == "target").Select(x => x.Id).SingleAsync();
+        var book = await db.Notebooks.SingleAsync(x => x.UserId == owner);
+        var entry = await db.DiaryEntries.SingleAsync(x => x.NotebookId == book.Id);
+        Assert.That(entry.Content, Does.Contain("現在の本文").And.Contain("attachment:").And.Not.Contain(image));
+        Assert.That(book.Template, Does.Contain("attachment:").And.Not.Contain(image));
+        Assert.That(await db.DiaryImages.CountAsync(), Is.Zero);
+        Assert.That(await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(owner, entry.Content), Does.Contain("画像が見つかりません"));
+    }
+
     /// <summary>履歴・画像・タスク・記念日を移し、認証とゴミ箱を除外し、再送で重複しない</summary>
     [Test]
     public async Task RoundTripRemapsOwnershipAndDisablesAllDevices()

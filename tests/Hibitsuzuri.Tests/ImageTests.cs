@@ -369,7 +369,11 @@ public sealed class ImageTests
     [TestCase("draft", HttpStatusCode.Conflict)]
     [TestCase("owner", HttpStatusCode.NotFound)]
     [TestCase("confirmation", HttpStatusCode.BadRequest)]
-    public async Task DeleteRejectsProtectedImages(string reason, HttpStatusCode expected)
+    [TestCase("owner", HttpStatusCode.NotFound, true)]
+    [TestCase("confirmation", HttpStatusCode.BadRequest, true)]
+    [TestCase("references", HttpStatusCode.BadRequest, true)]
+    [TestCase("editing", HttpStatusCode.Conflict, true)]
+    public async Task DeleteRejectsProtectedImages(string reason, HttpStatusCode expected, bool permanently = false)
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
@@ -422,20 +426,79 @@ public sealed class ImageTests
         }
 
         using var rejected = await DeleteImageAsync(reason == "owner" ? other : client, image, draft,
-            reason == "editing" ? text : "", reason != "confirmation");
+            reason == "editing" ? text : "", reason != "confirmation", permanently, reason != "references");
         Assert.That(rejected.StatusCode, Is.EqualTo(expected), await rejected.Content.ReadAsStringAsync());
         using var retained = await client.GetAsync($"/images/{image}");
         Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
+    /// <summary>参照中の画像も確認後に削除し、既存の文章・履歴・テンプレートは変更しない</summary>
+    [Test]
+    public async Task PermanentDeletionPreservesTextAndRemovesReferencedImage()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var draft = Guid.NewGuid().ToString();
+        var image = await UploadAsync(client, book, draft);
+        var text = $"![写真](attachment:{image})";
+        var version = await DiaryClient.SaveVersionAsync(client, book, "過去版 " + text);
+        await DiaryClient.SaveVersionAsync(client, book, "現在版 " + text, version);
+        var otherBook = await DiaryClient.CreateBookAsync(client, "別の日記帳");
+        var otherVersion = await DiaryClient.SaveVersionAsync(client, otherBook, text);
+        using var trash = await AuthClient.PostAsync(client, $"/diary/{otherBook}/2020-05-10/trash",
+            new()
+            {
+                ["action"] = "delete",
+                ["version"] = otherVersion
+            });
+        Assert.That(trash.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        using var otherDraft = await AuthClient.PostAsync(client, "/api/images/draft",
+            new()
+            {
+                ["draftId"] = Guid.NewGuid().ToString(),
+                ["content"] = text
+            });
+        Assert.That(otherDraft.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        await using (var setup = app.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            var notebook = await db.Notebooks.SingleAsync(x => x.Id == book);
+            notebook.Template = text;
+            await db.SaveChangesAsync();
+        }
+
+        using var deleted = await DeleteImageAsync(client, image, draft, permanently: true, referencesConfirmed: true);
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK), await deleted.Content.ReadAsStringAsync());
+
+        using var missing = await client.GetAsync($"/images/{image}");
+        Assert.That(missing.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        var html = await client.GetStringAsync($"/diary/{book}/2020-05-10");
+        Assert.That(html, Does.Contain("画像が見つかりません"));
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.That(await database.DiaryImages.AnyAsync(x => x.Id == image), Is.False);
+        Assert.That(await database.ImageDraftLeases.AnyAsync(x => x.ImageId == image), Is.False);
+        Assert.That(await database.DiaryImageReferences.AnyAsync(x => x.ImageId == image), Is.False);
+        Assert.That(File.Exists(scope.ServiceProvider.GetRequiredService<ImageStore>().PathFor(image)), Is.False);
+        Assert.That(await database.DiaryEntries.Where(x => x.NotebookId == book).Select(x => x.Content).SingleAsync(), Is.EqualTo("現在版 " + text));
+        Assert.That(await database.DiaryRevisions.Select(x => x.Content).SingleAsync(), Is.EqualTo("過去版 " + text));
+        Assert.That(await database.Notebooks.Where(x => x.Id == book).Select(x => x.Template).SingleAsync(), Is.EqualTo(text));
+        Assert.That(await database.DiaryEntries.Where(x => x.NotebookId == otherBook).Select(x => x.Content).SingleAsync(), Is.EqualTo(text));
+    }
+
     /// <summary>削除対象・現在の本文・確認結果を実際のCSRF付きリクエストで送信する</summary>
-    private static Task<HttpResponseMessage> DeleteImageAsync(HttpClient client, string image, string draft, string content = "", bool confirmed = true)
+    private static Task<HttpResponseMessage> DeleteImageAsync(HttpClient client, string image, string draft, string content = "", bool confirmed = true,
+        bool permanently = false, bool referencesConfirmed = false)
     {
         return AuthClient.PostAsync(client, $"/api/images/{image}/delete", new()
         {
             ["draftId"] = draft,
             ["content"] = content,
-            ["confirmed"] = confirmed.ToString()
+            ["confirmed"] = confirmed.ToString(),
+            ["permanently"] = permanently.ToString(),
+            ["referencesConfirmed"] = referencesConfirmed.ToString()
         });
     }
 

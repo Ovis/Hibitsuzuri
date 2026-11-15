@@ -190,14 +190,16 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
         }));
     }
 
-    /// <summary>本文から外した未保存画像だけを、参照更新と競合させず明示削除する</summary>
+    /// <summary>本文から外した画像を削除する。参照中の画像は影響を確認した完全削除だけで扱う</summary>
     [HttpPost("/api/images/{id}/delete")]
     [RequestSizeLimit(1500000)]
     [RequestFormLimits(ValueLengthLimit = 1200000)]
     [ServiceFilter(typeof(AuthOperationFilter))]
-    public async Task<IActionResult> Delete(string id, string? draftId, string? content, bool confirmed)
+    public async Task<IActionResult> Delete(string id, string? draftId, string? content, bool confirmed,
+        bool permanently = false, bool referencesConfirmed = false)
     {
-        if (!confirmed || !Guid.TryParseExact(id, "N", out _) || !Guid.TryParseExact(draftId, "D", out _)
+        if (!confirmed || (permanently && !referencesConfirmed)
+            || !Guid.TryParseExact(id, "N", out _) || !Guid.TryParseExact(draftId, "D", out _)
             || !AuthRules.ValidText(content ?? "", 0, 100000))
         {
             return BadRequest(new
@@ -223,8 +225,7 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
             });
         }
 
-        var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
-        if ((await images.SavedReferencesAsync(Owner)).Contains(id))
+        if (!permanently && (await images.SavedReferencesAsync(Owner)).Contains(id))
         {
             return Conflict(new
             {
@@ -232,7 +233,8 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
             });
         }
 
-        if (await database.ImageDraftLeases.AnyAsync(x => x.ImageId == id && x.DraftId != draftId && x.ExpiresAt > now))
+        var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+        if (!permanently && await database.ImageDraftLeases.AnyAsync(x => x.ImageId == id && x.DraftId != draftId && x.ExpiresAt > now))
         {
             return Conflict(new
             {
@@ -240,7 +242,8 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
             });
         }
 
-        // DBを先に確定し、ファイル削除に失敗した場合は孤立ファイルの定期回収へ引き継ぐ。
+        // 完全削除でも本文・履歴・テンプレートは書き換えず、残った参照は欠落画像として表示する。
+        // 画像の保持行は外部キーで同時に削除する。ファイル削除失敗時は定期回収へ引き継ぐ。
         database.DiaryImages.Remove(image);
         await database.SaveChangesAsync();
         System.IO.File.Delete(images.PathFor(id));
