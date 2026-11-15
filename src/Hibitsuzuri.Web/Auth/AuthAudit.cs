@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -55,7 +56,7 @@ public sealed class AuthMaintenance(IServiceScopeFactory scopes, AuthWriteGate g
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    logger.LogError(exception, "認証の期限切れデータの回収に失敗しました。");
+                    logger.LogError((int)OperationalEvent.AuthCleanupFailed, exception, "認証の期限切れデータの回収に失敗しました。");
                 }
                 finally
                 {

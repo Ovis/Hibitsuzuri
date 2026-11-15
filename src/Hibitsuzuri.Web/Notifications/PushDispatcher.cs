@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -172,7 +173,7 @@ public sealed class PushMaintenance(IServiceScopeFactory scopes, TimeProvider cl
             }
             catch (Exception exception)
             {
-                logger.LogError("通知処理に失敗 Type={Type}", exception.GetType().Name);
+                logger.LogError((int)OperationalEvent.PushProcessingFailed, exception, "通知処理に失敗しました。");
             }
 
             if (!await timer.WaitForNextTickAsync(stoppingToken))

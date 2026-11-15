@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -73,7 +74,7 @@ public sealed class HolidayUpdates(AppDbContext db, HolidaySource source, Holida
                 or JsonException or KeyNotFoundException or InvalidOperationException or System.Text.DecoderFallbackException
                 or Microsoft.VisualBasic.FileIO.MalformedLineException || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
             {
-                logger.LogWarning(exception, "祝日データを更新できませんでした。保存済みデータを維持します。");
+                logger.LogWarning((int)OperationalEvent.HolidayUpdateFailed, exception, "祝日データを更新できませんでした。保存済みデータを維持します。");
                 error = exception is InvalidDataException ? exception.Message : "取得・検証に失敗しました。接続先やサーバーログを確認してください。";
             }
 
@@ -135,7 +136,7 @@ public sealed class HolidayMaintenance(IServiceScopeFactory scopes, TimeProvider
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    logger.LogError(exception, "祝日更新の状態を保存できませんでした。次の周期で再確認します。");
+                    logger.LogError((int)OperationalEvent.HolidayStateFailed, exception, "祝日更新の状態を保存できませんでした。次の周期で再確認します。");
                 }
             }
         }

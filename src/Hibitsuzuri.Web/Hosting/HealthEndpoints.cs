@@ -33,6 +33,12 @@ public static class HealthEndpoints
 
         if (path == "/health/ready")
         {
+            if (context.RequestServices.GetRequiredService<OperationalLogging>().FileFailed)
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                return;
+            }
+
             var database = context.RequestServices.GetRequiredService<AppDbContext>();
             try
             {
@@ -46,7 +52,8 @@ public static class HealthEndpoints
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 context.RequestServices.GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("Health").LogError(exception, "DBの稼働確認に失敗しました。");
+                    .CreateLogger("Hibitsuzuri.Web.Hosting.HealthEndpoints")
+                    .LogError((int)OperationalEvent.DatabaseHealthFailed, exception, "DBの稼働確認に失敗しました。");
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 return;
             }

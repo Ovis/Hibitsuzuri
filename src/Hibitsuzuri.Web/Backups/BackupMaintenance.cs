@@ -1,4 +1,5 @@
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Hosting;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,7 @@ public sealed class BackupMaintenance(IServiceScopeFactory scopes, AuthWriteGate
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    logger.LogError(error, "バックアップの一時ファイルの回収に失敗しました。");
+                    logger.LogError((int)OperationalEvent.BackupCleanupFailed, error, "バックアップの一時ファイルの回収に失敗しました。");
                 }
                 finally
                 {

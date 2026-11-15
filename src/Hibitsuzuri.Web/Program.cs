@@ -43,6 +43,11 @@ public partial class Program
             options.UseSqlite(services.GetRequiredService<DataDirectory>().ConnectionString));
 
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<OperationalLogging>();
+        builder.Services.AddSingleton<ILoggerProvider>(services => services.GetRequiredService<OperationalLogging>());
+        builder.Services.AddHostedService<LogMaintenance>();
+
         builder.Services.AddSingleton<DiaryMarkdown>();
         builder.Services.AddScoped<CalendarReader>();
         builder.Services.AddScoped<TaskSchedule>();
@@ -149,8 +154,7 @@ public partial class Program
         app.UseAuthorization();
         app.MapControllers();
 
-        var clock = app.Services.GetRequiredService<TimeProvider>();
-        app.Logger.LogInformation("起動完了 TimeZone={TimeZone} LocalTime={LocalTime}", TimeZoneInfo.Local.Id, clock.GetLocalNow());
+        app.Logger.LogInformation((int)OperationalEvent.Started, "DB初期化が完了しました。");
         await app.RunAsync();
 
         return 0;
