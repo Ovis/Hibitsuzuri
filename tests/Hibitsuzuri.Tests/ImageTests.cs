@@ -191,7 +191,7 @@ public sealed class ImageTests
             ["draftId"] = Guid.NewGuid().ToString(),
             ["content"] = $"![写真](attachment:{image})"
         });
-        using var discard = await AuthClient.PostAsync(client, "/api/images/draft", new()
+        using var discard = await AuthClient.PostAsync(client, "/api/images/draft/discard", new()
         {
             ["draftId"] = draft,
             ["content"] = ""
@@ -225,7 +225,7 @@ public sealed class ImageTests
         var draft = Guid.NewGuid().ToString();
         var image = await UploadAsync(client, book, draft);
         var version = await DiaryClient.SaveVersionAsync(client, book, $"![写真](attachment:{image})");
-        using var discard = await AuthClient.PostAsync(client, "/api/images/draft", new()
+        using var discard = await AuthClient.PostAsync(client, "/api/images/draft/discard", new()
         {
             ["draftId"] = draft,
             ["content"] = ""
@@ -263,6 +263,75 @@ public sealed class ImageTests
         await CleanupAsync(app);
         Assert.That(await db.DiaryImages.CountAsync(), Is.Zero);
         Assert.That(File.Exists(orphan), Is.False);
+    }
+
+    /// <summary>切り取り中の下書き更新と回収を挟んでも、貼り付けた画像を表示・保存できる</summary>
+    [Test]
+    public async Task CutAndPasteKeepsUnsavedImageAvailable()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var draft = Guid.NewGuid().ToString();
+        var image = await UploadAsync(client, book, draft);
+
+        using var cut = await AuthClient.PostAsync(client, "/api/images/draft", new()
+        {
+            ["draftId"] = draft,
+            ["content"] = "画像の移動中"
+        });
+        Assert.That(cut.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        await CleanupAsync(app);
+
+        var text = $"先頭へ移動 ![写真](attachment:{image})\n本文";
+        using var pasted = await AuthClient.PostAsync(client, "/api/images/draft", new()
+        {
+            ["draftId"] = draft,
+            ["content"] = text
+        });
+        using var renewed = JsonDocument.Parse(await pasted.Content.ReadAsStringAsync());
+        Assert.That(renewed.RootElement.GetProperty("missing").GetArrayLength(), Is.Zero);
+
+        using var preview = await AuthClient.PostAsync(client, "/api/diary/preview", new()
+        {
+            ["content"] = text
+        });
+        using var rendered = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+        Assert.That(rendered.RootElement.GetProperty("html").GetString(), Does.Contain($"/images/{image}").And.Not.Contain("画像が見つかりません"));
+        using var saved = await DiaryClient.SaveAsync(client, book, text);
+        Assert.That(saved.StatusCode, Is.EqualTo(HttpStatusCode.OK), await saved.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>外した画像の期限は延長せず、未参照のまま30日が経過した画像を回収する</summary>
+    [Test]
+    public async Task RemovedReferenceKeepsOriginalExpiryWithoutRenewal()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var draft = Guid.NewGuid().ToString();
+        var image = await UploadAsync(client, book, draft);
+        app.Clock.Advance(TimeSpan.FromDays(29));
+        using var login = await AuthClient.LoginAsync(client);
+
+        using var cut = await AuthClient.PostAsync(client, "/api/images/draft", new()
+        {
+            ["draftId"] = draft,
+            ["content"] = ""
+        });
+        using var retained = await client.GetAsync($"/images/{image}");
+        Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        app.Clock.Advance(TimeSpan.FromDays(1));
+        using var loginAgain = await AuthClient.LoginAsync(client);
+        using var expired = await client.GetAsync($"/images/{image}");
+        Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        await CleanupAsync(app);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        Assert.That(await scope.ServiceProvider.GetRequiredService<AppDbContext>().DiaryImages.CountAsync(), Is.Zero);
     }
 
     /// <summary>画素の比較ができる不透明なPNGを作る</summary>

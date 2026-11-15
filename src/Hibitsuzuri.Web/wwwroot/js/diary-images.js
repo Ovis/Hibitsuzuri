@@ -85,7 +85,7 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
         }
     }
 
-    function renew(text, id = draftId) {
+    function renew(text, id = draftId, discard = false) {
         if (uploading) {
             // 追加中の画像を直前の本文で参照解除しない。取り込み完了後に最新本文を送る。
             return Promise.resolve();
@@ -94,7 +94,8 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
         // 古い本文の更新応答が新しい保持期限を上書きしないよう、タブ内で順番を固定する。
         queue = queue.then(async () => {
             try {
-                const response = await post('/api/images/draft', { draftId: id, content: text }, AbortSignal.timeout(10000));
+                const response = await post(discard ? '/api/images/draft/discard' : '/api/images/draft',
+                    { draftId: id, content: text }, AbortSignal.timeout(10000));
                 if (!response.ok) {
                     throw new Error('lease');
                 }
@@ -149,5 +150,5 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
     });
 
     refresh();
-    return { renew };
+    return { renew, discard: (id = draftId) => renew('', id, true) };
 }

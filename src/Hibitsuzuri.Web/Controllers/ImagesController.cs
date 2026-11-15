@@ -143,6 +143,24 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
         });
     }
 
+    /// <summary>保存完了・キャンセル・下書きの破棄により、その下書きの保持だけを解除する</summary>
+    [HttpPost("/api/images/draft/discard")]
+    [ServiceFilter(typeof(AuthOperationFilter))]
+    public async Task<IActionResult> DiscardDraft(string? draftId)
+    {
+        if (!Guid.TryParseExact(draftId, "D", out _))
+        {
+            return BadRequest();
+        }
+
+        await images.DiscardAsync(Owner, draftId ?? "");
+
+        return Json(new
+        {
+            missing = Array.Empty<string>()
+        });
+    }
+
     /// <summary>本人の添付候補と下書き画像の期限を返す</summary>
     [HttpGet("/api/images/{bookId}/{date}")]
     public async Task<IActionResult> List(string bookId, string date)

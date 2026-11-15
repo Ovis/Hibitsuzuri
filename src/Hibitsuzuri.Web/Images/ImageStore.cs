@@ -85,7 +85,8 @@ public sealed class ImageStore(AppDbContext database, DataDirectory data, DiaryM
         var valid = ids.Where(available.Contains).ToHashSet(StringComparer.Ordinal);
         var leases = await database.ImageDraftLeases.Where(x => x.DraftId == draftId
             && database.DiaryImages.Any(i => i.Id == x.ImageId && i.UserId == owner)).ToListAsync();
-        database.ImageDraftLeases.RemoveRange(leases.Where(x => !valid.Contains(x.ImageId)));
+        // 切り取り・貼り付けやUndoの途中で参照が消えても、元の期限までは再利用できるようにする。
+        // 本文に戻らない画像の期限は延長せず、明示的な下書き破棄だけが期限前に保持を解除する。
 
         var expires = clock.GetUtcNow().AddDays(30).ToUnixTimeMilliseconds();
         foreach (var id in valid)
@@ -104,6 +105,13 @@ public sealed class ImageStore(AppDbContext database, DataDirectory data, DiaryM
         await database.SaveChangesAsync();
 
         return ids.Where(x => !available.Contains(x)).ToArray();
+    }
+
+    /// <summary>明示的に破棄した本人の下書きだけ保持を解除する。書き込みゲート内で呼ぶ</summary>
+    public Task DiscardAsync(string owner, string draftId)
+    {
+        return database.ImageDraftLeases.Where(x => x.DraftId == draftId
+            && database.DiaryImages.Any(i => i.Id == x.ImageId && i.UserId == owner)).ExecuteDeleteAsync();
     }
 
     /// <summary>本文・履歴・下書きのいずれにも参照されない画像と中断ファイルを回収する</summary>

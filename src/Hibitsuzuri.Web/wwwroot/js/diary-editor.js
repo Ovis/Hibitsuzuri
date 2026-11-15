@@ -66,7 +66,7 @@ function removeCurrentDraft() {
         drafts.remove(draftId);
     }
 
-    return images.renew('');
+    return images.discard();
 }
 
 async function post(url, fields, signal) {
@@ -159,7 +159,7 @@ function renderCandidates(candidates) {
 
             try {
                 drafts.remove(draft.id);
-                images.renew('', draft.id);
+                images.discard(draft.id);
                 renderCandidates(drafts.list().filter(item => item.id !== draftId));
             } catch {
                 showNotice('下書きを破棄できませんでした。保存領域の許可を確認してください。');
