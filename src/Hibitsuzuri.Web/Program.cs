@@ -144,7 +144,8 @@ public partial class Program
         app.Use(RequestSecurity.RequireHttpsAsync);
         app.UseStaticFiles(new StaticFileOptions
         {
-            OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = context.Context.Request.Path == "/sw.js"
+            // import先には画面のバージョン識別子が伝わらないため、JavaScriptは読み込みごとに更新を確認する。
+            OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = context.File.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
                 ? "no-cache" : "public, max-age=3600"
         });
 

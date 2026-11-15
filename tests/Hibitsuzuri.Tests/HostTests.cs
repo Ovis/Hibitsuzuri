@@ -6,6 +6,26 @@ namespace Hibitsuzuri.Tests;
 /// <summary>公開URL・プロキシ・エラー応答・CSRFのHTTP境界を検証する</summary>
 public sealed class HostTests
 {
+    /// <summary>画面から直接読み込むスクリプトとimport先の両方で更新確認を要求する</summary>
+    [TestCase("/js/diary-editor.js")]
+    [TestCase("/js/diary-images.js")]
+    [TestCase("/js/diary-drafts.js")]
+    [TestCase("/sw.js")]
+    public async Task ScriptsRequireCacheRevalidation(string path)
+    {
+        await using var app = new TestApplication();
+        using var browser = app.CreateBrowser();
+
+        using var response = await browser.GetAsync(path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(response.Headers.CacheControl?.NoCache, Is.True);
+            Assert.That(response.Headers.ETag, Is.Not.Null);
+        });
+    }
+
     /// <summary>MVC画面は日本語で表示し、個人データ向けのキャッシュ禁止を既定にする</summary>
     [Test]
     public async Task HomeUsesJapaneseMvcViewAndNoStore()
