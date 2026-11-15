@@ -1,11 +1,34 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Hibitsuzuri.Tests;
 
 /// <summary>Identity標準の暗号検証とアプリの単回使用・所有者境界</summary>
 public sealed class PasskeyTests
 {
+    /// <summary>拡張結果の欠落による400を再現し、空オブジェクトを送れば同じ登録処理が成功する</summary>
+    [TestCase(false, HttpStatusCode.BadRequest)]
+    [TestCase(true, HttpStatusCode.OK)]
+    public async Task RegistrationRequiresClientExtensionResults(bool includeExtensions, HttpStatusCode expected)
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(owner);
+        using var authenticator = new TestAuthenticator();
+        var options = await OptionsAsync(owner, "register");
+        var credential = JsonNode.Parse(authenticator.Create(options.GetProperty("publicKeyOptions")))?.AsObject()
+            ?? throw new InvalidOperationException("試験用の登録応答がありません。");
+        if (!includeExtensions)
+        {
+            credential.Remove("clientExtensionResults");
+        }
+
+        using var response = await VerifyAsync(owner, "register", options, credential.ToJsonString());
+
+        Assert.That(response.StatusCode, Is.EqualTo(expected), await response.Content.ReadAsStringAsync());
+    }
+
     /// <summary>実署名で登録・ログイン・再認証し、リプレイを拒否する</summary>
     [Test]
     public async Task SignedPasskeyWorksAndCannotBeReplayed()
