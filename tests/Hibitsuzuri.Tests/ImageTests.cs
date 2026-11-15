@@ -334,6 +334,111 @@ public sealed class ImageTests
         Assert.That(await scope.ServiceProvider.GetRequiredService<AppDbContext>().DiaryImages.CountAsync(), Is.Zero);
     }
 
+    /// <summary>本人の未使用画像だけを消し、DB・下書き保持・ファイルを残さない</summary>
+    [Test]
+    public async Task DeleteUnusedUploadRemovesOnlyRequestedImage()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var draft = Guid.NewGuid().ToString();
+        var image = await UploadAsync(client, book, draft);
+        var retained = await UploadAsync(client, book, draft);
+
+        using var deleted = await DeleteImageAsync(client, image, draft);
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK), await deleted.Content.ReadAsStringAsync());
+        using var missing = await client.GetAsync($"/images/{image}");
+        using var present = await client.GetAsync($"/images/{retained}");
+        Assert.That(missing.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(present.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.That(await db.DiaryImages.AnyAsync(x => x.Id == image), Is.False);
+        Assert.That(await db.ImageDraftLeases.AnyAsync(x => x.ImageId == image), Is.False);
+        Assert.That(File.Exists(scope.ServiceProvider.GetRequiredService<ImageStore>().PathFor(image)), Is.False);
+    }
+
+    /// <summary>現在編集中の本文・保存済み参照・別の下書き・所有者・削除確認の境界を守る</summary>
+    [TestCase("editing", HttpStatusCode.Conflict)]
+    [TestCase("saved", HttpStatusCode.Conflict)]
+    [TestCase("history", HttpStatusCode.Conflict)]
+    [TestCase("trash", HttpStatusCode.Conflict)]
+    [TestCase("template", HttpStatusCode.Conflict)]
+    [TestCase("draft", HttpStatusCode.Conflict)]
+    [TestCase("owner", HttpStatusCode.NotFound)]
+    [TestCase("confirmation", HttpStatusCode.BadRequest)]
+    public async Task DeleteRejectsProtectedImages(string reason, HttpStatusCode expected)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        var draft = Guid.NewGuid().ToString();
+        var image = await UploadAsync(client, book, draft);
+        var text = $"![写真](attachment:{image})";
+        if (reason is "saved" or "history" or "trash")
+        {
+            var version = await DiaryClient.SaveVersionAsync(client, book, text);
+            if (reason == "history")
+            {
+                await DiaryClient.SaveVersionAsync(client, book, "画像を外す", version);
+            }
+            else if (reason == "trash")
+            {
+                using var trash = await AuthClient.PostAsync(client, $"/diary/{book}/2020-05-10/trash",
+                    new()
+                    {
+                        ["action"] = "delete",
+                        ["version"] = version
+                    });
+                Assert.That(trash.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+            }
+        }
+        else if (reason == "template")
+        {
+            await using var setup = app.Services.CreateAsyncScope();
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            var notebook = await db.Notebooks.SingleAsync(x => x.Id == book);
+            notebook.Template = text;
+            await db.SaveChangesAsync();
+        }
+        else if (reason == "draft")
+        {
+            using var otherDraft = await AuthClient.PostAsync(client, "/api/images/draft",
+                new()
+                {
+                    ["draftId"] = Guid.NewGuid().ToString(),
+                    ["content"] = text
+                });
+            Assert.That(otherDraft.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        }
+
+        using var other = app.CreateBrowser();
+        if (reason == "owner")
+        {
+            await AuthClient.RegisterAsync(other, "other", false);
+        }
+
+        using var rejected = await DeleteImageAsync(reason == "owner" ? other : client, image, draft,
+            reason == "editing" ? text : "", reason != "confirmation");
+        Assert.That(rejected.StatusCode, Is.EqualTo(expected), await rejected.Content.ReadAsStringAsync());
+        using var retained = await client.GetAsync($"/images/{image}");
+        Assert.That(retained.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    /// <summary>削除対象・現在の本文・確認結果を実際のCSRF付きリクエストで送信する</summary>
+    private static Task<HttpResponseMessage> DeleteImageAsync(HttpClient client, string image, string draft, string content = "", bool confirmed = true)
+    {
+        return AuthClient.PostAsync(client, $"/api/images/{image}/delete", new()
+        {
+            ["draftId"] = draft,
+            ["content"] = content,
+            ["confirmed"] = confirmed.ToString()
+        });
+    }
+
     /// <summary>画素の比較ができる不透明なPNGを作る</summary>
     private static byte[] Png(int width, int height)
     {

@@ -75,6 +75,48 @@ export function createImageEditor({ form, content, draftId, post, changed, isBus
                 });
 
                 row.append(thumbnail, label, add, remove);
+                if (image.expiresAt !== null && image.expiresAt !== undefined) {
+                    const discard = document.createElement('button');
+                    discard.type = 'button';
+                    discard.textContent = '画像を削除';
+                    discard.addEventListener('click', async () => {
+                        if (isBusy()) {
+                            return;
+                        }
+
+                        if (content.value.includes(`attachment:${image.id}`)) {
+                            showNotice('先に「本文から外す」で、この画像を本文から外してください。');
+                            return;
+                        }
+
+                        if (!window.confirm(`「${image.name}」を削除しますか？ この画像は元に戻せません。`)) {
+                            return;
+                        }
+
+                        setBusy(true);
+                        try {
+                            // 先行する下書き更新を確定してから、サーバーでも最新の参照と所有者を確認する。
+                            await queue;
+                            const response = await post(`/api/images/${image.id}/delete`,
+                                { draftId, content: content.value, confirmed: 'true' }, AbortSignal.timeout(10000));
+                            const result = await response.json();
+                            if (!response.ok) {
+                                showNotice(result.message || '画像を削除できませんでした。');
+                            } else if (result.deleted === true) {
+                                showNotice('未使用の画像を削除しました。');
+                            } else {
+                                throw new Error('delete-result');
+                            }
+                        } catch {
+                            showNotice('画像の削除結果を確認できません。接続と添付一覧を確認してください。');
+                        } finally {
+                            setBusy(false);
+                            await refresh();
+                        }
+                    });
+                    row.append(discard);
+                }
+
                 list.append(row);
             }
 

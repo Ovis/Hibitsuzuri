@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using Hibitsuzuri.Web.Auth;
+using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Hibitsuzuri.Web.Controllers;
 
 /// <summary>画像の取り込み・非公開配信と下書きの保持期限を扱う</summary>
-public sealed class ImagesController(AppDbContext database, ImageStore images, ImageWorker worker, DataDirectory data, TimeProvider clock) : Controller
+public sealed class ImagesController(AppDbContext database, ImageStore images, ImageWorker worker, DataDirectory data,
+    TimeProvider clock, DiaryMarkdown markdown) : Controller
 {
     /// <summary>配信と変更を許す所有者</summary>
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException();
@@ -186,6 +188,67 @@ public sealed class ImagesController(AppDbContext database, ImageStore images, I
             x.Length,
             expiresAt = saved.Contains(x.Id) ? (long?)null : leases.Where(l => l.ImageId == x.Id).Max(l => l.ExpiresAt)
         }));
+    }
+
+    /// <summary>本文から外した未保存画像だけを、参照更新と競合させず明示削除する</summary>
+    [HttpPost("/api/images/{id}/delete")]
+    [RequestSizeLimit(1500000)]
+    [RequestFormLimits(ValueLengthLimit = 1200000)]
+    [ServiceFilter(typeof(AuthOperationFilter))]
+    public async Task<IActionResult> Delete(string id, string? draftId, string? content, bool confirmed)
+    {
+        if (!confirmed || !Guid.TryParseExact(id, "N", out _) || !Guid.TryParseExact(draftId, "D", out _)
+            || !AuthRules.ValidText(content ?? "", 0, 100000))
+        {
+            return BadRequest(new
+            {
+                message = "本文と削除対象を確認してください。"
+            });
+        }
+
+        var image = await database.DiaryImages.SingleOrDefaultAsync(x => x.Id == id && x.UserId == Owner);
+        if (image is null)
+        {
+            return NotFound(new
+            {
+                message = "画像が見つかりません。添付一覧を確認してください。"
+            });
+        }
+
+        if (markdown.ImageIds(content ?? "").Contains(id))
+        {
+            return Conflict(new
+            {
+                message = "先に「本文から外す」で、この画像を本文から外してください。"
+            });
+        }
+
+        var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+        if ((await images.SavedReferencesAsync(Owner)).Contains(id))
+        {
+            return Conflict(new
+            {
+                message = "保存済みの日記・編集履歴・テンプレートで使用している画像は削除できません。"
+            });
+        }
+
+        if (await database.ImageDraftLeases.AnyAsync(x => x.ImageId == id && x.DraftId != draftId && x.ExpiresAt > now))
+        {
+            return Conflict(new
+            {
+                message = "別の下書きで保持している画像です。不要な下書きを破棄してから削除してください。"
+            });
+        }
+
+        // DBを先に確定し、ファイル削除に失敗した場合は孤立ファイルの定期回収へ引き継ぐ。
+        database.DiaryImages.Remove(image);
+        await database.SaveChangesAsync();
+        System.IO.File.Delete(images.PathFor(id));
+
+        return Ok(new
+        {
+            deleted = true
+        });
     }
 
     /// <summary>アカウント共通の次回以降の画像保存方式を表示する</summary>
