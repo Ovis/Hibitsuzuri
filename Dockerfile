@@ -8,7 +8,7 @@ RUN dotnet publish src/Hibitsuzuri.Web/Hibitsuzuri.Web.csproj -c Release --no-re
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.15@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS runtime
 WORKDIR /app
-RUN mkdir /data && chown 1654:1654 /data && chmod 700 /data
+RUN mkdir /data /backups /logs && chown 1654:1654 /data /backups /logs && chmod 700 /data /backups /logs
 COPY --from=build /publish/ ./
 COPY LICENSE ./LICENSE
 ENV ASPNETCORE_HTTP_PORTS=8080 \

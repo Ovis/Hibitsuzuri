@@ -428,6 +428,8 @@ FodyWeavers.xsd
 #*.lscache
 
 # Local application data and configuration
+/compose.yml
+/backups/
 **/data/
 !src/Hibitsuzuri.Web/Views/Data/
 !src/Hibitsuzuri.Web/Backups/
