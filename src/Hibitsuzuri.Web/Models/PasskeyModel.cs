@@ -13,7 +13,7 @@ public sealed class PasskeyModel
     [Required, StringLength(65536)]
     public string Credential { get; set; } = "";
 
-    /// <summary>登録時に付ける端末・用途の名前</summary>
+    /// <summary>任意の表示名。未入力時は登録結果から提供元名を補完する</summary>
     [StringLength(200)]
     public string? Name
     {

@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Auth/passkey-providers.json" />
     <EmbeddedResource Include="Calendar/holidays.json" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
     <Content Remove="data/**/*" />

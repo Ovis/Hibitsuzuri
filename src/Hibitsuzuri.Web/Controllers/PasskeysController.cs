@@ -147,7 +147,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
     [HttpPost("/api/passkeys/register/verify")]
     public async Task<IActionResult> Register(PasskeyModel model)
     {
-        if (!ModelState.IsValid || !AuthRules.ValidText(model.Name, 1, 100) || !await sessions.IsRecentAsync(User))
+        if (!ModelState.IsValid || !AuthRules.ValidText(model.Name ?? "", 0, 100) || !await sessions.IsRecentAsync(User))
         {
             return Failure(400);
         }
@@ -181,7 +181,8 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
-        attestation.Passkey.Name = model.Name;
+        // 名前の補完は登録検証の成功後に行い、明示された名前はそのまま優先する。
+        attestation.Passkey.Name = string.IsNullOrWhiteSpace(model.Name) ? PasskeyNames.Create(attestation.Passkey) : model.Name;
         AuthRules.RequireSuccess(await users.AddOrUpdatePasskeyAsync(user, attestation.Passkey));
         audit.Add(HttpContext, "passkey-added", user.Id);
 

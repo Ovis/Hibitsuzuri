@@ -1,12 +1,86 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Hibitsuzuri.Web.Auth;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Hibitsuzuri.Tests;
 
 /// <summary>Identity標準の暗号検証とアプリの単回使用・所有者境界</summary>
 public sealed class PasskeyTests
 {
+    /// <summary>名前未入力時は作成元を補完し、ゼロ・未知のAAGUIDでも登録を妨げない</summary>
+    [TestCase("bada5566-a7aa-401f-bd96-45619a55120d", null, "1Password")]
+    [TestCase("bada5566-a7aa-401f-bd96-45619a55120d", "", "1Password")]
+    [TestCase("bada5566-a7aa-401f-bd96-45619a55120d", "　 ", "1Password")]
+    [TestCase("d548826e-79b4-db40-a3d8-11116f7e8349", null, "Bitwarden")]
+    [TestCase("ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4", null, "Google Password Manager")]
+    [TestCase("00000000-0000-0000-0000-000000000000", null, null)]
+    [TestCase("11111111-2222-3333-4444-555555555555", null, null)]
+    public async Task RegistrationAssignsNameFromProviderOrDate(string aaguid, string? name, string? expected)
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        using var authenticator = new TestAuthenticator();
+        var options = await OptionsAsync(owner, "register");
+        var credential = authenticator.Create(options.GetProperty("publicKeyOptions"), aaguid: Guid.Parse(aaguid));
+
+        using var response = await VerifyAsync(owner, "register", options, credential, name);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+        var passkey = (await ReadPasskeysAsync(app)).Single();
+        expected ??= "Passkey（" + passkey.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) + "登録）";
+        Assert.That(passkey.Name, Is.EqualTo(expected));
+    }
+
+    /// <summary>入力名と登録後の変更名を優先し、ログインでも自動名へ戻さない</summary>
+    [Test]
+    public async Task CustomNameAndRenameSurvivePasskeyLogin()
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        using var authenticator = new TestAuthenticator();
+        var options = await OptionsAsync(owner, "register");
+        var credential = authenticator.Create(options.GetProperty("publicKeyOptions"), aaguid: Guid.Parse("bada5566-a7aa-401f-bd96-45619a55120d"));
+        using var registered = await VerifyAsync(owner, "register", options, credential, "個人用の保管庫");
+        Assert.That(registered.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That((await ReadPasskeysAsync(app)).Single().Name, Is.EqualTo("個人用の保管庫"));
+
+        using var renamed = await AuthClient.PostAsync(owner, "/account/passkeys/rename", new()
+        {
+            ["id"] = authenticator.Id,
+            ["name"] = "変更した表示名"
+        });
+        Assert.That(renamed.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
+        using var login = app.CreateBrowser();
+        var loginOptions = await OptionsAsync(login, "login");
+        using var signedIn = await VerifyAsync(login, "login", loginOptions, authenticator.Get(loginOptions.GetProperty("publicKeyOptions")));
+        Assert.That(signedIn.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That((await ReadPasskeysAsync(app)).Single().Name, Is.EqualTo("変更した表示名"));
+    }
+
+    /// <summary>任意入力に変更しても、不正な名前を補完で隠して保存しない</summary>
+    [TestCase(101, false)]
+    [TestCase(1, true)]
+    public async Task RegistrationStillRejectsInvalidName(int length, bool containsNull)
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        using var authenticator = new TestAuthenticator();
+        var options = await OptionsAsync(owner, "register");
+        var name = containsNull ? "\0" : new string('a', length);
+
+        using var response = await VerifyAsync(owner, "register", options, authenticator.Create(options.GetProperty("publicKeyOptions")), name);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(await ReadPasskeysAsync(app), Is.Empty);
+    }
+
     /// <summary>拡張結果の欠落による400を再現し、空オブジェクトを送れば同じ登録処理が成功する</summary>
     [TestCase(false, HttpStatusCode.BadRequest)]
     [TestCase(true, HttpStatusCode.OK)]
@@ -74,7 +148,8 @@ public sealed class PasskeyTests
         using var authenticator = new TestAuthenticator();
         var options = await OptionsAsync(owner, "register");
 
-        using var rejected = await VerifyAsync(owner, "register", options, authenticator.Create(options.GetProperty("publicKeyOptions"), origin, verified));
+        using var rejected = await VerifyAsync(owner, "register", options,
+            authenticator.Create(options.GetProperty("publicKeyOptions"), origin, verified, Guid.Parse("bada5566-a7aa-401f-bd96-45619a55120d")), null);
 
         Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
@@ -194,13 +269,28 @@ public sealed class PasskeyTests
     }
 
     /// <summary>試験認証器が生成した応答をサーバーへ渡す</summary>
-    private static Task<HttpResponseMessage> VerifyAsync(HttpClient client, string purpose, JsonElement options, string credential)
+    private static Task<HttpResponseMessage> VerifyAsync(HttpClient client, string purpose, JsonElement options, string credential, string? name = "試験用Passkey")
     {
-        return AuthClient.PostAsync(client, $"/api/passkeys/{purpose}/verify", new()
+        var fields = new Dictionary<string, string>
         {
             ["ChallengeId"] = options.GetProperty("challengeId").GetString() ?? "",
-            ["Credential"] = credential,
-            ["Name"] = "試験用Passkey"
-        });
+            ["Credential"] = credential
+        };
+        if (name is not null)
+        {
+            fields["Name"] = name;
+        }
+
+        return AuthClient.PostAsync(client, $"/api/passkeys/{purpose}/verify", fields);
+    }
+
+    /// <summary>画面表示とは別に、アプリが永続化した表示名と登録日を確認する</summary>
+    private static async Task<IList<UserPasskeyInfo>> ReadPasskeysAsync(TestApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var owner = await users.FindByNameAsync("owner") ?? throw new InvalidOperationException("試験ユーザーがありません。");
+
+        return await users.GetPasskeysAsync(owner);
     }
 }

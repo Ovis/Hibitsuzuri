@@ -11,7 +11,8 @@
 
     <form class="account-form passkey-form" data-purpose="register">
         @Html.AntiForgeryToken()
-        <label>表示名<input name="Name" maxlength="100" placeholder="例：自宅のPC" required /></label>
+        <label>表示名（任意）<input name="Name" maxlength="100" placeholder="例：自宅のPC" aria-describedby="passkey-name-help" /></label>
+        <p id="passkey-name-help" class="muted">空欄の場合は、登録に使ったサービスなどの名前を自動で付けます。判別できない場合は登録日付きの名前になります。登録後も変更できます。</p>
         <button type="submit" class="button primary">Passkeyを追加</button>
         <p role="status" class="passkey-status"></p>
     </form>
