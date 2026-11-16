@@ -875,15 +875,6 @@
         });
     }
 
-    if (filterForm) {
-        const media = window.matchMedia("(max-width: 700px)");
-        const filters = select(".task-filters");
-        filters.open = !media.matches;
-        media.addEventListener("change", event => {
-            filters.open = !event.matches;
-        });
-    }
-
     load();
     const linkedTask = new URL(location.href).searchParams.get("taskId");
     if (linkedTask) {
