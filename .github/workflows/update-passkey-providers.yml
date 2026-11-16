@@ -1,0 +1,100 @@
+name: Update passkey providers
+
+on:
+  schedule:
+    # 毎週月曜09:17（日本時間）。混雑する正時を避ける。
+    - cron: '17 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-passkey-providers
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # 更新PRは既定ブランチの同梱データを対象にする。
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      UPDATE_BRANCH: feature/update-passkey-providers
+      PROVIDERS_FILE: src/Hibitsuzuri.Web/Auth/passkey-providers.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Test metadata updater
+        run: node --test tests/tools/passkey-providers.test.mjs
+
+      - name: Restore C-MDS cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/passkey-cmds
+          key: passkey-cmds-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: passkey-cmds-v1-
+
+      - name: Update provider names
+        id: metadata
+        run: node tools/update-passkey-providers.mjs --cache "$RUNNER_TEMP/passkey-cmds/cache.json"
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        if: steps.metadata.outputs.changed == 'true'
+        with:
+          global-json-file: global.json
+
+      - name: Verify updated names with passkey registration
+        if: steps.metadata.outputs.changed == 'true'
+        run: dotnet test Hibitsuzuri.slnx --filter FullyQualifiedName~PasskeyTests -m:1 --disable-build-servers
+
+      - name: Create or update metadata pull request
+        if: steps.metadata.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_number=$(gh pr list --base "$DEFAULT_BRANCH" --head "$UPDATE_BRANCH" --state open --json number --jq '.[0].number // empty')
+          remote_sha=$(git ls-remote --heads origin "refs/heads/$UPDATE_BRANCH" | cut -f1)
+          if [ -n "$remote_sha" ]; then
+            git fetch origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+            previous_file="$RUNNER_TEMP/previous-passkey-providers.json"
+            git show "origin/$UPDATE_BRANCH:$PROVIDERS_FILE" > "$previous_file"
+            same_names=$(jq --slurp '.[0].providers == .[1].providers' "$PROVIDERS_FILE" "$previous_file")
+            # PRが未マージでも、取得日やシリアルだけの差でコミットを作り直さない。
+            if [ -n "$pr_number" ] && [ "$same_names" = true ]; then
+              echo "既存PR #$pr_number に同じ対応表が含まれています。"
+              exit 0
+            fi
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$UPDATE_BRANCH"
+          git add -- "$PROVIDERS_FILE"
+          git diff --cached --check
+          git commit -m 'FIDO C-MDSのPasskey提供元名を更新する'
+          # このワークフロー専用のブランチだけを更新し、外部からの同時変更は拒否する。
+          git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$remote_sha" origin "HEAD:refs/heads/$UPDATE_BRANCH"
+
+          if [ -z "$pr_number" ]; then
+            body_file="$RUNNER_TEMP/passkey-providers-pr.md"
+            cat > "$body_file" <<'BODY'
+          FIDO C-MDSの名前対応表を更新し、新しく登録するPasskeyの自動命名へ反映します。未収録のAAGUIDは固定保存した旧一覧で補完します。既存のPasskey名は変更しません。
+
+          更新処理のテストとPasskey登録の結合テストは成功しています。名前の追加・変更・削除を確認してから手動でマージしてください。
+          BODY
+            gh pr create --base "$DEFAULT_BRANCH" --head "$UPDATE_BRANCH" --title 'FIDO C-MDSのPasskey提供元名を更新' --body-file "$body_file"
+          fi
