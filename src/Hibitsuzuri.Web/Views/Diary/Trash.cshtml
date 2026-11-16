@@ -15,7 +15,7 @@
 <section class="paper">
     @if (Model.Entries.Count == 0)
     {
-        <p>日記のゴミ箱は空です。</p>
+        <div class="diary-trash-empty"><p>日記のゴミ箱は空です。</p></div>
     }
 
     @foreach (var entry in Model.Entries)

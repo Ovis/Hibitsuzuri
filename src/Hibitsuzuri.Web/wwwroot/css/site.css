@@ -354,11 +354,11 @@ svg {
     font-size: 14px;
 }
 
-.notebook-empty {
+.notebook-empty, .diary-trash-empty {
     padding: 28px 32px;
 }
 
-.notebook-empty p {
+.notebook-empty p, .diary-trash-empty p {
     margin: 0;
 }
 
