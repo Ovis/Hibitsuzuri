@@ -871,11 +871,42 @@ svg {
 }
 
 .calendar-month .calendar-day {
+    display: grid;
+    grid-template-columns: max-content max-content max-content minmax(0, 1fr);
+    align-content: start;
+    align-items: center;
+    column-gap: 4px;
     min-height: 90px;
     border: 0;
     border-top: 1px solid var(--line);
     border-radius: 0;
     padding: 12px;
+}
+
+.calendar-month .calendar-day > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+/* 日付と状態の印を先頭行にまとめ、名称や本文はその下に表示する。 */
+.calendar-month .calendar-day > span:first-child {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.calendar-month .entry-dot {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.calendar-month .task-marker {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+}
+
+.calendar-month .calendar-day:not(:has(.entry-dot)) .task-marker {
+    grid-column: 2;
 }
 
 .auth-shell {
@@ -2056,6 +2087,16 @@ input[role="switch"]:checked::before {
         min-height: 67px;
         padding: 10px 5px;
         font-size: 12px;
+        column-gap: 2px;
+    }
+
+    .calendar-month .entry-dot {
+        font-size: 8px;
+    }
+
+    .calendar-month .task-marker .icon {
+        width: 10px;
+        height: 10px;
     }
 
     .calendar-month .calendar-entry-title {
