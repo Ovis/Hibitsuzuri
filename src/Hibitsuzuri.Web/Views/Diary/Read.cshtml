@@ -3,6 +3,7 @@
     ViewData["Title"] = Model.Day;
     ViewData["Navigation"] = "home";
     ViewData["BookName"] = Model.Book.Name;
+    var holidayName = Model.Calendar?.Holidays.GetValueOrDefault(Model.Date);
 }
 
 <div class="reading-layout">
@@ -11,7 +12,7 @@
             <div>
                 <p class="eyebrow">DIARY</p>
                 <h1>@Model.Date.ToString("yyyy年M月d日")</h1>
-                <span class="muted">@Model.Date.ToString("dddd")@(Model.Date == Model.Today ? "　・　今日" : "")</span>
+                <span class="muted">@Model.Date.ToString("dddd")@(holidayName is null ? "" : $"（祝・{holidayName}）")@(Model.Date == Model.Today ? "　・　今日" : "")</span>
                 @if (Model.Calendar is not null)
                 {
                     <div class="diary-special-days">
