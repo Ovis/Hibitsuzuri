@@ -1468,6 +1468,20 @@ textarea {
 .calendar-legend {
     font-size: .85rem;
 }
+.anniversary-date {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.anniversary-date > label {
+    width: 88px;
+}
+
+.anniversary-add {
+    margin-top: 20px;
+}
+
 .anniversary-row {
     display: flex;
     align-items: center;

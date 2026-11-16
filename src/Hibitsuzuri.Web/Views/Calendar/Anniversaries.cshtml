@@ -25,7 +25,7 @@
             </form>
         </div>
     }
-    <a class="button primary" href="/anniversaries?create=true" data-page-dialog data-dialog-target="#anniversary-form">＋ 記念日を追加</a>
+    <a class="button primary anniversary-add" href="/anniversaries?create=true" data-page-dialog data-dialog-target="#anniversary-form">＋ 記念日を追加</a>
 </section>
 @if (!Model.IsNew || Context.Request.Query.ContainsKey("create"))
 {
@@ -39,7 +39,7 @@
                 <input type="hidden" name="version" value="@Model.Editing.Version" />
             }
             <label>名前 <input name="title" value="@Model.Editing.Title" maxlength="100" required /></label>
-            <div class="day-navigation">
+            <div class="anniversary-date">
                 <label>月 <input name="month" type="number" min="1" max="12" value="@(Model.IsNew ? 1 : Model.Editing.Month)" required /></label>
                 <label>日 <input name="day" type="number" min="1" max="31" value="@(Model.IsNew ? 1 : Model.Editing.Day)" required /></label>
             </div>
