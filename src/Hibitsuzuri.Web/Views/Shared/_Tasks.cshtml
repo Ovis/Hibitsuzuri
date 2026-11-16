@@ -65,7 +65,7 @@
         }
         else if (past)
         {
-            <p class="muted">過去の日付のタスクは、この画面では閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
+            <p class="muted" data-past-task-notice hidden>過去の日付のタスクは、この画面では閲覧のみです。変更は<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で行えます。</p>
         }
         <p data-task-status role="status" class="muted"></p>
         <div data-task-waiting></div>

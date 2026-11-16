@@ -154,6 +154,11 @@
             }
 
             if (day) {
+                const pastNotice = select("[data-past-task-notice]");
+                if (pastNotice) {
+                    pastNotice.hidden = data.counts.dated === 0;
+                }
+
                 const dated = data.items.filter(item => item.dueDate);
                 const undated = data.items.filter(item => !item.dueDate);
                 dated.forEach(item => list.append(row(item)));
