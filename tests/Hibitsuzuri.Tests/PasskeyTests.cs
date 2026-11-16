@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Hibitsuzuri.Web.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,97 @@ namespace Hibitsuzuri.Tests;
 /// <summary>Identity標準の暗号検証とアプリの単回使用・所有者境界</summary>
 public sealed class PasskeyTests
 {
+    /// <summary>本人確認の案内は10分の境界で表示し、再認証して戻ると非表示にする</summary>
+    [Test]
+    public async Task ManagementShowsVerificationOnlyWhenRequired()
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+
+        app.Clock.Advance(TimeSpan.FromMinutes(10) - TimeSpan.FromMilliseconds(1));
+        Assert.That(await VerificationNoticeAsync(owner), Does.Contain("hidden"));
+        app.Clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.That(await VerificationNoticeAsync(owner), Does.Not.Contain("hidden"));
+
+        using var verified = await AuthClient.PostAsync(owner, "/account/reauthenticate", new()
+        {
+            ["password"] = AuthClient.Password,
+            ["returnUrl"] = "/account/passkeys"
+        });
+
+        Assert.That(verified.Headers.Location?.OriginalString, Is.EqualTo("/account/passkeys"));
+        Assert.That(await VerificationNoticeAsync(owner), Does.Contain("hidden"));
+    }
+
+    /// <summary>画面表示後または認証器の操作中に期限切れしても、登録せず再認証を案内する</summary>
+    [TestCase("options")]
+    [TestCase("verify")]
+    public async Task ExpiredRegistrationRequestsVerification(string step)
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        using var authenticator = new TestAuthenticator();
+        app.Clock.Advance(TimeSpan.FromMinutes(9));
+        var options = await OptionsAsync(owner, "register");
+        var credential = authenticator.Create(options.GetProperty("publicKeyOptions"));
+
+        // チャレンジ自体は期限内のまま、セッションの本人確認だけを期限切れにする。
+        app.Clock.Advance(TimeSpan.FromMinutes(1));
+        using var rejected = step == "options"
+            ? await AuthClient.PostAsync(owner, "/api/passkeys/register/options")
+            : await VerifyAsync(owner, "register", options, credential);
+        var body = JsonSerializer.Deserialize<JsonElement>(await rejected.Content.ReadAsStringAsync());
+
+        Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+        Assert.That(body.GetProperty("code").GetString(), Is.EqualTo("reauthentication_required"));
+        Assert.That(await ReadPasskeysAsync(app), Is.Empty);
+    }
+
+    /// <summary>削除時の期限切れは本人確認へ案内し、戻った後の明示操作まで鍵を保持する</summary>
+    [Test]
+    public async Task ExpiredDeletionRequiresVerificationAndExplicitRetry()
+    {
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        using var authenticator = new TestAuthenticator();
+        await RegisterKeyAsync(owner, authenticator);
+        app.Clock.Advance(TimeSpan.FromMinutes(10));
+
+        using var expired = await AuthClient.PostAsync(owner, "/account/passkeys/delete", new()
+        {
+            ["id"] = authenticator.Id,
+            ["confirmed"] = "true"
+        });
+        Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        Assert.That(expired.Headers.Location?.OriginalString, Is.EqualTo("/account/reauthenticate?returnUrl=/account/passkeys"));
+        Assert.That(await ReadPasskeysAsync(app), Has.Count.EqualTo(1));
+
+        using var verified = await AuthClient.PostAsync(owner, "/account/reauthenticate", new()
+        {
+            ["password"] = AuthClient.Password,
+            ["returnUrl"] = "/account/passkeys"
+        });
+        Assert.That(verified.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        Assert.That(await ReadPasskeysAsync(app), Has.Count.EqualTo(1));
+        using var unconfirmed = await AuthClient.PostAsync(owner, "/account/passkeys/delete", new()
+        {
+            ["id"] = authenticator.Id
+        });
+        Assert.That(unconfirmed.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+        Assert.That(await ReadPasskeysAsync(app), Has.Count.EqualTo(1));
+
+        using var deleted = await AuthClient.PostAsync(owner, "/account/passkeys/delete", new()
+        {
+            ["id"] = authenticator.Id,
+            ["confirmed"] = "true"
+        });
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        Assert.That(await ReadPasskeysAsync(app), Is.Empty);
+    }
+
     /// <summary>名前未入力時は作成元を補完し、ゼロ・未知のAAGUIDでも登録を妨げない</summary>
     [TestCase("bada5566-a7aa-401f-bd96-45619a55120d", null, "1Password")]
     [TestCase("bada5566-a7aa-401f-bd96-45619a55120d", "", "1Password")]
@@ -292,5 +384,16 @@ public sealed class PasskeyTests
         var owner = await users.FindByNameAsync("owner") ?? throw new InvalidOperationException("試験ユーザーがありません。");
 
         return await users.GetPasskeysAsync(owner);
+    }
+
+    /// <summary>管理画面の案内要素を取り出し、リンクの戻り先と表示状態を検証する</summary>
+    private static async Task<string> VerificationNoticeAsync(HttpClient client)
+    {
+        var html = await client.GetStringAsync("/account/passkeys");
+        var notice = Regex.Match(html, "<p[^>]*data-passkey-reauthentication[^>]*>");
+        Assert.That(notice.Success, Is.True);
+        Assert.That(html, Does.Contain("href=\"/account/reauthenticate?returnUrl=/account/passkeys\""));
+
+        return notice.Value;
     }
 }

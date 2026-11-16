@@ -91,6 +91,17 @@ function base64Url(buffer) {
 async function send(path, body) {
     const response = await fetch(path, { method: 'POST', body, credentials: 'same-origin', redirect: 'error' });
     if (!response.ok) {
+        const failure = await response.json().catch(() => null);
+        if (response.status === 403 && failure?.code === 'reauthentication_required') {
+            const notice = document.querySelector('[data-passkey-reauthentication]');
+            if (notice) {
+                notice.hidden = false;
+                notice.querySelector('a').focus();
+            }
+
+            throw new Error('本人確認の期限が切れました。「本人確認する」から再認証して、もう一度操作してください。');
+        }
+
         throw new Error(response.status === 403 ? '本人確認の期限が切れました。本人確認画面で再認証してください。'
             : response.status === 429 ? '操作が多いため一時的に制限しています。時間をおいて再試行してください。'
                 : 'Passkeyの操作を完了できませんでした。登録状態や接続を確認して再試行してください。');

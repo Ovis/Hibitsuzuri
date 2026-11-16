@@ -43,9 +43,13 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
     [HttpPost("/api/passkeys/{purpose}/options")]
     public async Task<IActionResult> Options(string purpose)
     {
-        if (purpose is not ("register" or "reauthenticate") || (purpose == "register" && !await sessions.IsRecentAsync(User)))
+        if (purpose is not ("register" or "reauthenticate"))
         {
             return Failure(403);
+        }
+        if (purpose == "register" && !await sessions.IsRecentAsync(User))
+        {
+            return VerificationRequired();
         }
 
         var user = await users.GetUserAsync(User);
@@ -147,9 +151,13 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
     [HttpPost("/api/passkeys/register/verify")]
     public async Task<IActionResult> Register(PasskeyModel model)
     {
-        if (!ModelState.IsValid || !AuthRules.ValidText(model.Name ?? "", 0, 100) || !await sessions.IsRecentAsync(User))
+        if (!ModelState.IsValid || !AuthRules.ValidText(model.Name ?? "", 0, 100))
         {
             return Failure(400);
+        }
+        if (!await sessions.IsRecentAsync(User))
+        {
+            return VerificationRequired();
         }
 
         var user = await users.GetUserAsync(User);
@@ -221,9 +229,14 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
     [HttpPost("/account/passkeys/delete")]
     public async Task<IActionResult> Delete(string id, bool confirmed)
     {
-        if (!confirmed || !await sessions.IsRecentAsync(User))
+        if (!confirmed)
         {
             return Failure(403);
+        }
+        if (!await sessions.IsRecentAsync(User))
+        {
+            // 再認証後は管理画面へ戻し、削除は利用者が改めて確認して実行する。
+            return Redirect("/account/reauthenticate?returnUrl=/account/passkeys");
         }
 
         var user = await users.GetUserAsync(User);
@@ -264,4 +277,7 @@ public sealed class PasskeysController(AppDbContext db, UserManager<AppUser> use
 
     /// <summary>認証器や秘密情報を含めない失敗応答</summary>
     private ObjectResult Failure(int status) => Problem(statusCode: status, title: "Passkeyの操作を完了できませんでした。本人確認や有効期限を確認して再試行してください。");
+
+    /// <summary>CSRFなどの拒否と区別して、登録画面に再認証の導線を表示させる</summary>
+    private ObjectResult VerificationRequired() => StatusCode(403, new { code = "reauthentication_required" });
 }
