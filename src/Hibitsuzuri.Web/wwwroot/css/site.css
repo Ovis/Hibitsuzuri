@@ -703,7 +703,9 @@ svg {
 .dialog-body {
     overflow-y: auto;
     min-height: 0;
-    padding-block: 16px;
+    /* 外側に出るフォーカス枠をスクロール領域内に収め、見出しとの左右位置を保つ。 */
+    margin-inline: -8px;
+    padding: 16px 8px;
 }
 
 .dialog-body .prose {
