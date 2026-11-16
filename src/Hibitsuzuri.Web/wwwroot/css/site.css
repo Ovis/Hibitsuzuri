@@ -669,9 +669,17 @@ svg {
     margin-top: 24px;
 }
 
-.dialog-heading > button {
+.dialog-heading > button,
+.form-dialog > .diary-heading > button,
+.task-dialog header > button {
+    width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    padding: 0;
     border: 0;
     background: transparent;
+    font-size: 28px;
+    line-height: 1;
 }
 
 .history-dialog {
@@ -698,6 +706,10 @@ svg {
     max-width: none;
     padding: 0;
     border: 0;
+}
+
+.page-dialog .anniversary-cancel {
+    display: none;
 }
 
 .dialog-body {
