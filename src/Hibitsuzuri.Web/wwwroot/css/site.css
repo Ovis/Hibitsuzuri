@@ -570,9 +570,33 @@ svg {
     font-size: 0;
 }
 
+/* 印は未完了タスク、記念日、祝日の順で1つだけ表示し、日付の読み上げには全情報を残す。 */
+.reading-aside .calendar-day:has(.task-marker) .calendar-anniversary,
+.reading-aside .calendar-day:has(.task-marker, .calendar-anniversary) .calendar-holiday {
+    display: none;
+}
+
 .reading-aside .calendar-holiday::after {
     content: "祝";
     font-size: 8px;
+}
+
+.reading-aside .task-marker {
+    display: flex;
+}
+
+.reading-aside .calendar-anniversary,
+.reading-aside .task-marker {
+    color: var(--muted);
+}
+
+/* 四角い背景を置かず、アイコンの線の周囲だけを縁取って選択日の円と区別する。 */
+.reading-aside .calendar-anniversary .icon,
+.reading-aside .task-marker .icon {
+    filter: drop-shadow(1px 0 0 var(--paper))
+        drop-shadow(-1px 0 0 var(--paper))
+        drop-shadow(0 1px 0 var(--paper))
+        drop-shadow(0 -1px 0 var(--paper));
 }
 
 .reading-aside .entry-dot {
