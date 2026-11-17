@@ -345,7 +345,7 @@
             const previous = cell.querySelector("[data-task-marker]");
             if (pending && !previous) {
                 const marker = node("span", undefined, "task-marker");
-                const icon = document.querySelector('.calendar-legend .icon');
+                const icon = document.querySelector('[data-calendar-task-key] .icon');
                 if (icon) {
                     marker.append(icon.cloneNode(true));
                 }

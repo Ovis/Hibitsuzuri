@@ -21,10 +21,10 @@
         var color = holiday is not null || date.DayOfWeek == DayOfWeek.Sunday ? "holiday" : date.DayOfWeek == DayOfWeek.Saturday ? "saturday" : "";
         var hasTasks = Model.PendingTasks.Contains(date);
         var label = $"{date:yyyy年M月d日（ddd）} {holiday} {(date == Model.Today ? "今日" : "")} {(hasEntry ? "日記あり" : "")} {(hasTasks ? "未完了タスクあり" : "")} {string.Join("、", names)}";
-        <a class="calendar-day @color @(date == Model.Today ? "today" : "")" href="/diary/@Model.Book.Id/@date.ToString("yyyy-MM-dd")"
+        <a class="calendar-day @color @(date == Model.Today ? "today" : "") @(hasEntry ? "has-entry" : "")" href="/diary/@Model.Book.Id/@date.ToString("yyyy-MM-dd")"
            data-calendar-date="@date.ToString("yyyy-MM-dd")"
            aria-label="@label" aria-current="@(date == Model.Selected ? "date" : null)">
-            <span>@number</span>
+            <span class="calendar-date-number">@number</span>
             @if (date == Model.Today)
             {
                 <small class="calendar-today">今日</small>
@@ -44,9 +44,16 @@
             }
             @if (hasTasks)
             {
-                <span class="task-marker" data-task-marker aria-hidden="true"><partial name="_Icon" model='"checklist"' /></span>
+                <span class="task-marker" data-task-marker aria-hidden="true"><partial name="_Icon" model='"tasks"' /></span>
             }
         </a>
     }
 </div>
-<div class="muted calendar-legend"><span>● 日記あり</span><span><partial name="_Icon" model='"checklist"' /> 未完了タスク</span><span><partial name="_Icon" model='"star"' /> 記念日</span><span class="holiday">祝日・日曜</span><span class="saturday">土曜</span></div>
+<div class="muted calendar-legend">
+    <span><span class="calendar-entry-key" aria-hidden="true">●</span> 日記あり</span>
+    <span data-calendar-task-key><partial name="_Icon" model='"tasks"' /> 未完了タスクあり</span>
+    <span><partial name="_Icon" model='"star"' /> 記念日</span>
+    <span class="mini-calendar-state-key">枠：選択日 ／ 下線：今日</span>
+    <span class="holiday">祝日・日曜</span>
+    <span class="saturday">土曜</span>
+</div>
