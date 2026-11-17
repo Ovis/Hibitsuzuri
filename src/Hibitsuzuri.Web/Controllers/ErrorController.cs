@@ -19,8 +19,12 @@ public sealed class ErrorController : Controller
         // 不正・過大なフォームを再バインドせず、再実行されたルートから元のエラーを読む。
         var code = exception is null && int.TryParse(RouteData.Values["statusCode"]?.ToString(), out var statusCode)
             && statusCode is >= 400 and <= 599 ? statusCode : StatusCodes.Status500InternalServerError;
-        var message = code == StatusCodes.Status404NotFound
-            ? "ページが見つかりません。" : "処理を完了できませんでした。";
+        var message = code switch
+        {
+            StatusCodes.Status403Forbidden => "このページを表示する権限がありません。",
+            StatusCodes.Status404NotFound => "ページが見つかりません。",
+            _ => "処理を完了できませんでした。"
+        };
         var originalPath = exception?.Path ?? reExecution?.OriginalPath ?? Request.Path.Value;
 
         if (originalPath?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true

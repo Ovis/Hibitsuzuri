@@ -9,7 +9,14 @@
 </div>
 
 <section class="paper message-panel">
-    <p>URLを確認するか、時間をおいてもう一度お試しください。</p>
+    @if (Model.StatusCode == StatusCodes.Status403Forbidden)
+    {
+        <p>ホームへ戻り、利用できるメニューから操作してください。</p>
+    }
+    else
+    {
+        <p>URLを確認するか、時間をおいてもう一度お試しください。</p>
+    }
     <p class="muted request-id">お問い合わせ番号：@Model.RequestId</p>
     <a class="button primary" href="/">ホームへ戻る</a>
 </section>

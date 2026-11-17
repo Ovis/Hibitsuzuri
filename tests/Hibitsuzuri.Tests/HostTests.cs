@@ -182,6 +182,7 @@ public sealed class HostTests
     /// <summary>エラー応答は元の失敗を維持し、APIへHTMLを返さない</summary>
     [TestCase("/missing", 404, "text/html")]
     [TestCase("/api/missing", 404, "application/problem+json")]
+    [TestCase("/api/fixture/forbidden", 403, "application/problem+json")]
     [TestCase("/fixture/failure", 500, "text/html")]
     [TestCase("/api/fixture/failure", 500, "application/problem+json")]
     public async Task FailuresKeepStatusAndHideExceptionDetails(string path, int statusCode, string mediaType)

@@ -36,4 +36,8 @@ public sealed class ProbeController : Controller
     {
         throw new InvalidOperationException("private-failure-detail");
     }
+
+    /// <summary>APIの権限不足でCookie認証の拒否応答を検証する</summary>
+    [HttpGet("/api/fixture/forbidden")]
+    public IActionResult Forbidden() => Forbid();
 }

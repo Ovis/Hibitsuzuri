@@ -8,6 +8,36 @@ namespace Hibitsuzuri.Tests;
 /// <summary>登録受付・管理者権限・利用停止と最後の管理者の保護</summary>
 public sealed class UserManagementTests
 {
+    /// <summary>管理画面は一般ユーザーへ403の案内を返し、未ログイン時だけログインへ誘導する</summary>
+    [Test]
+    public async Task ForbiddenManagementPageUsesHtmlWithoutChangingAccessControl()
+    {
+        await using var app = new TestApplication();
+        using var admin = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, admin);
+        using var member = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, member, "member", false);
+        using var anonymous = app.CreateBrowser();
+
+        using var denied = await member.GetAsync("/admin/users");
+        var html = WebUtility.HtmlDecode(await denied.Content.ReadAsStringAsync());
+        using var allowed = await admin.GetAsync("/admin/users");
+        using var login = await anonymous.GetAsync("/admin/users");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(denied.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(denied.Content.Headers.ContentType?.MediaType, Is.EqualTo("text/html"));
+            Assert.That(denied.Headers.Location, Is.Null);
+            Assert.That(denied.Headers.CacheControl?.NoStore, Is.True);
+            Assert.That(html, Does.Contain("このページを表示する権限がありません。"));
+            Assert.That(html, Does.Contain("ホームへ戻る").And.Not.Contain("時間をおいて"));
+            Assert.That(allowed.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+            Assert.That(login.Headers.Location?.AbsolutePath, Is.EqualTo("/auth/login"));
+        });
+    }
+
     /// <summary>一般ユーザーの管理操作を拒否し、受付停止は既存利用へ影響しない</summary>
     [Test]
     public async Task RegistrationSwitchIsEnforcedOnServer()
@@ -24,6 +54,7 @@ public sealed class UserManagementTests
         });
 
         Assert.That(denied.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+        Assert.That(denied.Content.Headers.ContentType?.MediaType, Is.EqualTo("application/problem+json"));
 
         using var closed = await AuthClient.PostAsync(admin, "/admin/users/registration", new()
         {

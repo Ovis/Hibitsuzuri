@@ -103,12 +103,19 @@ public static class AuthConfiguration
         });
     }
 
-    /// <summary>APIや更新要求ではHTML転送せず、入力を保持できる認証エラーを返す</summary>
+    /// <summary>画面の未認証はログインへ誘導し、権限不足・API・更新要求は失敗の応答を保つ</summary>
     private static Task AuthRedirectAsync(RedirectContext<CookieAuthenticationOptions> context, int status)
     {
-        if (context.Request.Path.StartsWithSegments("/api") || !HttpMethods.IsGet(context.Request.Method) || status == 403)
+        if (context.Request.Path.StartsWithSegments("/api") || !HttpMethods.IsGet(context.Request.Method))
         {
             return Results.Problem(statusCode: status, title: "認証を確認してください。").ExecuteAsync(context.HttpContext);
+        }
+
+        if (status == StatusCodes.Status403Forbidden)
+        {
+            // 本文を書かず、ステータスコード再実行で共通のエラー画面を表示する。
+            context.Response.StatusCode = status;
+            return Task.CompletedTask;
         }
 
         context.Response.Redirect(context.RedirectUri);
