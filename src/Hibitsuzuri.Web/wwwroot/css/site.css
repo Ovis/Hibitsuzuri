@@ -540,6 +540,11 @@ svg {
     padding-inline: 0;
 }
 
+/* 上段の印のために行間を確保し、日付・選択日の円・日記の点の位置は保つ。 */
+.reading-aside .calendar-grid {
+    row-gap: 14px;
+}
+
 .reading-aside .mini-calendar .calendar-day {
     position: relative;
     min-height: 36px;
@@ -561,7 +566,7 @@ svg {
 .reading-aside .task-marker {
     position: absolute;
     right: 0;
-    top: -3px;
+    bottom: calc(100% - 3px);
     font-size: 8px;
     line-height: 1;
 }
