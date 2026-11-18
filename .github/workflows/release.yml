@@ -26,6 +26,9 @@ jobs:
     if: ${{ github.event_name == 'release' || (github.event_name == 'push' && github.event.created) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       revision: ${{ steps.version.outputs.revision }}
@@ -69,8 +72,39 @@ jobs:
 
           printf 'tag=%s\nrevision=%s\nprerelease=%s\n' "$GITHUB_REF_NAME" "$revision" "$prerelease" >> "$GITHUB_OUTPUT"
 
+      - name: Confirm successful CI for the published tag
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_REVISION: ${{ steps.version.outputs.revision }}
+        run: |
+          endpoint="repos/$GITHUB_REPOSITORY/actions"
+          run_ids=$(gh api --method GET --paginate "$endpoint/workflows/release.yml/runs" \
+            -f branch="$RELEASE_TAG" -f head_sha="$RELEASE_REVISION" -f event=push -f status=success \
+            -F per_page=100 --jq '.workflow_runs[].id')
+
+          # 全ジョブがスキップされた実行を除外する。ドラフト作成ジョブはCI成功時だけ実行される。
+          while IFS= read -r run_id; do
+            if [[ -z "$run_id" ]]; then
+              continue
+            fi
+
+            draft_job=$(gh api --method GET --paginate "$endpoint/runs/$run_id/jobs" \
+              -f filter=all -F per_page=100 \
+              --jq '.jobs[] | select(.name == "Create the release draft" and .conclusion == "success") | .id')
+            if [[ -n "$draft_job" ]]; then
+              printf '確認したタグpush時のCI: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$run_id"
+              exit 0
+            fi
+          done <<< "$run_ids"
+
+          echo "::error::No successful tag-push CI found for $RELEASE_TAG at $RELEASE_REVISION."
+          exit 1
+
   verify:
     name: Run CI for the release
+    if: github.event_name == 'push'
     needs: validate
     uses: ./.github/workflows/ci.yml
 
@@ -101,7 +135,7 @@ jobs:
   publish:
     name: Publish the container image
     if: github.event_name == 'release'
-    needs: [validate, verify]
+    needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
