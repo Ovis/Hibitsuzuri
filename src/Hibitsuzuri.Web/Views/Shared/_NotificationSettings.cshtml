@@ -1,0 +1,25 @@
+<section class="paper appearance-settings" data-notification-settings aria-labelledby="notifications-title">
+    <div class="section-heading"><span class="eyebrow">NOTIFICATIONS</span><h2 id="notifications-title">通知</h2></div>
+    @Html.AntiForgeryToken()
+    <label class="theme-toggle">
+        <span><strong>この端末でタスクの通知を受け取る</strong><span class="muted">通知する日時は、タスクごとに設定できます。</span></span>
+        <input type="checkbox" role="switch" data-push-toggle aria-describedby="push-status" disabled />
+    </label>
+    <p id="push-status" data-push-status role="status" class="muted">通知の状態を確認しています。</p>
+    <label class="check-label"><input type="checkbox" data-push-name /> このブラウザの通知にタスク名を表示する</label>
+    <div class="actions"><button type="button" data-push-test disabled>テスト通知を送る</button></div>
+    <details class="muted">
+        <summary>通知について</summary>
+        <p>通知にはタスクのメモを含めません。タスク名も初期状態では表示しません。</p>
+        <p>通知時刻はサーバーのタイムゾーン（<span data-push-zone></span>）を基準にします。ブラウザやOSの省電力・通知設定によって、届く時刻が遅れることがあります。</p>
+        <p>ログアウトするとこのブラウザへの通知も止まります。再ログイン後はここで有効にし直してください。再開前の通知は送りません。</p>
+    </details>
+</section>
+<section class="paper settings-card pwa-settings">
+    <h2>アプリとして使う</h2>
+    <p>ホーム画面やデスクトップから、専用のウィンドウで開けます。</p>
+    <button type="button" data-pwa-install hidden>アプリをインストール</button>
+    <p data-pwa-status>Chrome・Edgeのメニューから「アプリをインストール」または「ホーム画面に追加」を選べます。</p>
+    <p class="muted">日記・タスクの閲覧や編集にはサーバーへの接続が必要です。アプリの更新は、開いている画面をすべて閉じた後に反映されます。</p>
+</section>
+<script src="~/js/notifications.js" asp-append-version="true" defer></script>

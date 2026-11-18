@@ -1,0 +1,24 @@
+@model Hibitsuzuri.Web.Models.RegisterModel
+@{
+    ViewData["Title"] = Model.IsSetup ? "初回セットアップ" : "ユーザー登録";
+}
+
+<div class="page-heading"><h1>@ViewData["Title"]</h1></div>
+<section class="paper settings-panel">
+    <p>@(Model.IsSetup ? "最初のユーザーを管理者として作成します。" : "登録後、リカバリーコードを保存すると利用を開始できます。")</p>
+    <form method="post" action="/auth/register" class="account-form">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="notice" role="alert"></div>
+        <label asp-for="LoginId">ユーザーID（後から変更できません）<input asp-for="LoginId" autocomplete="username" minlength="3" maxlength="64" required /></label>
+        <label asp-for="Password">パスワード（12～128文字）<input asp-for="Password" autocomplete="new-password" required /></label>
+        <label asp-for="PasswordConfirmation">パスワードの確認<input asp-for="PasswordConfirmation" autocomplete="new-password" required /></label>
+        @if (Model.IsSetup)
+        {
+            <label asp-for="SetupCode">初回登録コード<input asp-for="SetupCode" autocomplete="off" minlength="64" maxlength="64" required aria-describedby="setup-code-help" /></label>
+            <p id="setup-code-help" class="muted">起動時にデータ保存先の setup-token.txt に生成されたコード（1行目）を入力してください。有効期限は24時間です。期限切れの場合は管理者がアプリを再起動してください。</p>
+        }
+        <button class="button primary" type="submit">@(Model.IsSetup ? "管理者を作成" : "登録する")</button>
+    </form>
+
+    <p><a href="/auth/login">ログインへ</a></p>
+</section>

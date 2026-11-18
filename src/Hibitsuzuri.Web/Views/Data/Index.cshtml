@@ -1,0 +1,80 @@
+@model IReadOnlyList<Hibitsuzuri.Web.Diary.Notebook>
+@{
+    ViewData["Title"] = "データ管理";
+    ViewData["Navigation"] = "data";
+}
+
+<header class="page-header">
+    <h1>データ管理</h1>
+    <p class="muted">記録を手元に保存する、保存した記録を取り込む。</p>
+</header>
+
+<section class="paper settings-panel">
+    <h2>Markdownで書き出す</h2>
+    <p>現在の日記本文をZIPにまとめます。履歴・タスク・ゴミ箱は含みません。</p>
+    <p class="muted">本文を編集して取り込めます。ZIP内の構成情報・日記帳フォルダー・日付付きファイル名・本文先頭の日付情報は保持してください。</p>
+    <form method="post" action="/data/export" class="account-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="markdown" />
+        <label for="export-book">対象の日記帳</label>
+        <select id="export-book" name="bookId">
+            <option value="">すべて（アーカイブを含む）</option>
+            @foreach (var book in Model)
+            {
+                <option value="@book.Id">@book.Name@(book.Archived ? "（アーカイブ）" : "")</option>
+            }
+        </select>
+        <label class="check-label"><input type="checkbox" name="includeImages" value="true" checked /> 画像を含める</label>
+        <input type="hidden" name="includeImages" value="false" />
+        <button class="button" type="submit">Markdown ZIPをダウンロード</button>
+    </form>
+</section>
+
+<section class="paper settings-panel spacer">
+    <h2>個人バックアップ</h2>
+    <p>日記帳・テンプレート・日記と過去5版・必要な画像・タスクとリマインダー・記念日をまとめます。アーカイブも含みます。</p>
+    <p>ゴミ箱・認証情報・通知端末・ブラウザ内の下書きは含みません。ZIPは暗号化されないため、保存先の取り扱いにご注意ください。</p>
+    <p class="muted">1回の上限：圧縮後2GB／展開後4GB。作成中は記録の更新を待機します。</p>
+    <form method="post" action="/data/export">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="backup" />
+        <label class="check-label"><input type="checkbox" name="includeImages" value="true" checked /> 画像を含める</label>
+        <input type="hidden" name="includeImages" value="false" />
+        <p class="muted">画像なしでも本文・履歴・テンプレートの画像参照は残ります。画像の実体は復元できません。</p>
+        <button class="button primary" type="submit">バックアップZIPをダウンロード</button>
+    </form>
+</section>
+
+<section class="paper settings-panel spacer" id="restore-panel">
+    <h2>バックアップ・Markdownから取り込む</h2>
+    <p>既存の記録を残して追加するか、ゴミ箱を含む記録全体を置き換えるかを選べます。追加時は同名の日記帳に「-2」などを付けます。</p>
+    <p>認証情報・個人設定・通知端末は維持します。復元したタスクは停止設定を維持し、復元完了後の通知予定から送信します。</p>
+    <p>Markdownは取り込み先の日記帳を選び、同じ日付の本文・編集履歴を置き換えます。ゴミ箱に同日の記録があれば置き換えて戻します。ZIPに含まれない日付、タスク、テンプレートは変更しません。</p>
+    <form id="restore-upload" class="account-form">
+        @Html.AntiForgeryToken()
+        <label for="restore-file">Hibitsuzuriの個人バックアップ・Markdown ZIP（2GB以内）</label>
+        <input id="restore-file" type="file" accept=".zip,application/zip" required />
+        <button class="button" type="submit">内容を確認する</button>
+    </form>
+    <p id="restore-status" role="status" aria-live="polite"></p>
+    <form id="restore-options" class="account-form" hidden aria-label="復元方法の選択">
+        <fieldset id="restore-modes">
+            <legend>復元方法</legend>
+            <label class="check-label"><input type="radio" name="mode" value="append" checked /> 既存の記録を残して追加する</label>
+            <label class="check-label"><input type="radio" name="mode" value="replace" /> 記録全体を置き換える</label>
+        </fieldset>
+        <div id="restore-targets" class="account-form" hidden></div>
+        <button class="button" type="submit">復元内容を確認する</button>
+    </form>
+    <div id="restore-preview" hidden></div>
+    <form id="restore-confirm" class="account-form" hidden>
+        <label class="check-label"><input id="restore-accepted" name="confirmed" type="checkbox" required /> <span id="restore-confirm-label">表示された内容で復元する</span></label>
+        <button class="button primary" type="submit">復元する</button>
+    </form>
+    <div class="actions">
+        <button id="restore-refresh" type="button">状態を確認</button>
+        <button id="restore-cancel" type="button" hidden>この復元を取り消す</button>
+    </div>
+    <p class="muted">検証後の確認期限は1時間です。通信が切れたときは「状態を確認」で結果を確認できます。</p>
+</section>
+<script src="~/js/data.js" asp-append-version="true" defer></script>

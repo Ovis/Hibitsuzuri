@@ -1,0 +1,22 @@
+services:
+  app:
+    image: hibitsuzuri:ci
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    user: "1654:1654"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      TZ: Asia/Tokyo
+      Site__PublicOrigin: https://hibitsuzuri-ci.example.test
+      Storage__Directory: /data
+      Operations__LogDirectory: /logs
+    # 実データを使わず、起動のたびに空の保存領域から初期化する。
+    tmpfs:
+      - /data:rw,nosuid,size=256m,mode=0700,uid=1654,gid=1654
+      - /logs:rw,nosuid,size=32m,mode=0700,uid=1654,gid=1654
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777

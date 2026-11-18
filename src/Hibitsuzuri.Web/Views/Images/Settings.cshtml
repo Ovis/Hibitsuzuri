@@ -1,0 +1,17 @@
+@model bool
+@{
+    ViewData["Title"] = "画像の保存設定";
+    ViewData["Navigation"] = "account";
+}
+<header class="page-header"><h1>画像の保存設定</h1></header>
+<form method="post" class="paper form-stack">
+    @Html.AntiForgeryToken()
+    <label><input type="radio" name="keepOriginal" value="false" checked="@(!Model)" />WebPに変換して保存（標準）</label>
+    <p>長辺2,560px以下は同じ寸法で可逆圧縮。超える場合は縦横比を保って縮小し、品質80で保存します。向きを補正し、撮影場所・日時・機種などの写真情報は取り除きます。</p>
+    <p>変換した場合は元のファイルを残しません。後で設定を変更しても元の画質には戻せません。可逆変換で容量が増えてもそのまま保存します。</p>
+    <label><input type="radio" name="keepOriginal" value="true" checked="@Model" />原本のまま保存</label>
+    <p>画質・形式・写真情報を含め、元のファイルをそのまま保存します。</p>
+    <p class="muted">設定はアカウント共通で、次回以降の取り込みに適用します。アニメーションはどちらの設定でも原本を保持します。</p>
+    <button class="primary" type="submit">設定を保存</button>
+</form>
+<p><a href="/account">アカウントへ戻る</a></p>

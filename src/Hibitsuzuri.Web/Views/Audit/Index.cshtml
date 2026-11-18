@@ -1,0 +1,55 @@
+@model Hibitsuzuri.Web.Controllers.AuditPage
+@{
+    ViewData["Title"] = "監査ログ";
+    ViewData["Navigation"] = "account";
+}
+
+<header class="page-header">
+    <h1>監査ログ</h1>
+    <p class="muted">重要な認証・管理・データ操作を90日間保持します。日記本文や認証秘密は記録しません。</p>
+</header>
+<details class="paper settings-panel" open>
+    <summary>絞り込み</summary>
+    <form method="get" class="account-form">
+        <label for="audit-from">開始日</label>
+        <input id="audit-from" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" />
+        <label for="audit-through">終了日</label>
+        <input id="audit-through" type="date" name="through" value="@Model.Through?.ToString("yyyy-MM-dd")" />
+        <label for="audit-type">種別</label>
+        <select id="audit-type" name="type">
+            <option value="">すべて</option>
+            @foreach (var type in Model.Types)
+            {
+                <option value="@type" selected="@(type == Model.Type)">@type</option>
+            }
+        </select>
+        <label for="audit-user">利用者の内部ID（実行者・対象者）</label>
+        <input id="audit-user" name="user" value="@Model.User" />
+        <button type="submit" class="button">絞り込む</button>
+    </form>
+</details>
+<section class="paper spacer">
+    @if (Model.Rows.Count == 0)
+    {
+        <p>該当する監査ログはありません。</p>
+    }
+    @foreach (var row in Model.Rows)
+    {
+        <article class="audit-row">
+            <p><time>@TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeMilliseconds(row.OccurredAt), Model.Zone).ToString("yyyy-MM-dd HH:mm:ss")</time> · @row.Event · @(row.Succeeded ? "成功" : "失敗")</p>
+            <p>実行者：@Model.Label(row.ActorId)<br />対象者：@Model.Label(row.SubjectId)</p>
+            <details><summary>接続情報</summary><p>@row.IpAddress<br />@row.UserAgent</p></details>
+        </article>
+    }
+</section>
+<nav class="actions spacer" aria-label="監査ログのページ">
+    @if (Model.Page > 1)
+    {
+        <a asp-action="Index" asp-route-page="@(Model.Page - 1)" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-through="@Model.Through?.ToString("yyyy-MM-dd")" asp-route-type="@Model.Type" asp-route-user="@Model.User">前の50件</a>
+    }
+    <span>@Model.Page ページ</span>
+    @if (Model.HasMore)
+    {
+        <a asp-action="Index" asp-route-page="@(Model.Page + 1)" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-through="@Model.Through?.ToString("yyyy-MM-dd")" asp-route-type="@Model.Type" asp-route-user="@Model.User">次の50件</a>
+    }
+</nav>

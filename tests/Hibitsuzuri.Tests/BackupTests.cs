@@ -1,0 +1,928 @@
+using System.IO.Compression;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Hibitsuzuri.Web.Backups;
+using Hibitsuzuri.Web.Calendar;
+using Hibitsuzuri.Web.Diary;
+using Hibitsuzuri.Web.Images;
+using Hibitsuzuri.Web.Notifications;
+using Hibitsuzuri.Web.Storage;
+using Hibitsuzuri.Web.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SkiaSharp;
+
+namespace Hibitsuzuri.Tests;
+
+/// <summary>実SQLite・実画像・HTTPで個人バックアップの移行と失敗境界を検証する</summary>
+public sealed class BackupTests
+{
+    /// <summary>表示先のない追加復元で記念日を黙って捨てず、置き換えなら元の全体指定を保つ</summary>
+    [Test]
+    public async Task AnniversaryOnlyArchiveRequiresReplacement()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Select(x => x.Id).SingleAsync();
+        db.Anniversaries.Add(new Anniversary { UserId = owner, Title = "日記帳作成前の記念日", Month = 1, Day = 1 });
+        await db.SaveChangesAsync();
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, await ExportAsync(client));
+
+        using var rejected = await AuthClient.PostAsync(client, $"/api/data/restore/{id}/preview", new()
+        {
+            ["mode"] = "append"
+        });
+        Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(await rejected.Content.ReadAsStringAsync(), Does.Contain("表示先にする日記帳がありません"));
+        Assert.That(await db.Anniversaries.CountAsync(), Is.EqualTo(1));
+
+        using var replaced = await ConfirmAsync(client, id, "replace");
+        Assert.That(replaced.StatusCode, Is.EqualTo(HttpStatusCode.OK), await replaced.Content.ReadAsStringAsync());
+        Assert.That(await db.Anniversaries.CountAsync(x => x.UserId == owner && x.AllNotebooks), Is.EqualTo(1));
+    }
+
+    /// <summary>追加した予定の過去通知は送らず、未来通知と既存タスクの通知だけを継続する</summary>
+    [Test]
+    public async Task RestoreResumesOnlyFutureNotificationsAndKeepsExistingTasks()
+    {
+        var sender = new RecordingPush();
+        await using var app = NotificationTests.Application(sender);
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        var from = await DiaryClient.CreateBookAsync(source, "復元元");
+        var existing = await DiaryClient.CreateBookAsync(target, "既存");
+        await NotificationTests.EnableAsync(target);
+        await NotificationTests.AddTaskAsync(app, from, TimeSpan.FromMinutes(1));
+        await NotificationTests.AddTaskAsync(app, from, TimeSpan.FromMinutes(5));
+        await NotificationTests.AddTaskAsync(app, existing, TimeSpan.FromMinutes(5));
+        var bytes = await ExportAsync(source);
+        app.Clock.Advance(TimeSpan.FromMinutes(3));
+
+        var id = await StartAsync(target);
+        using var upload = await UploadAsync(target, id, bytes);
+        using var restored = await ConfirmAsync(target, id);
+        Assert.That(restored.StatusCode, Is.EqualTo(HttpStatusCode.OK), await restored.Content.ReadAsStringAsync());
+        await NotificationTests.RunAsync(app);
+        Assert.That(sender.Messages, Is.Empty);
+
+        app.Clock.Advance(TimeSpan.FromMinutes(2));
+        await NotificationTests.RunAsync(app);
+        await NotificationTests.RunAsync(app);
+        Assert.That(sender.Messages, Has.Count.EqualTo(2));
+    }
+
+    /// <summary>編集したMarkdownは同日だけを履歴ごと置き換え、画像と対象外の記録を保持する</summary>
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task MarkdownOverwriteReplacesHistoryAtomically(bool includeImages)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var bookId = await SeedAsync(app, client);
+        var bytes = EditMarkdown(await ExportAsync(client, "markdown", bookId, includeImages), text => text.Replace("現在の本文", "外部で編集した本文", StringComparison.Ordinal));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var book = await db.Notebooks.AsNoTracking().SingleAsync(x => x.Id == bookId);
+        var original = await db.DiaryEntries.AsNoTracking().SingleAsync(x => x.NotebookId == bookId && x.DeletedAt == null);
+        var originalImage = await db.DiaryImages.SingleAsync();
+        var untouched = new DiaryEntry { NotebookId = bookId, EntryDate = new DateOnly(2020, 6, 1), Content = "対象外の日記" };
+        db.DiaryEntries.Add(untouched);
+        await db.SaveChangesAsync();
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, bytes);
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+        using var preview = JsonDocument.Parse(await upload.Content.ReadAsStringAsync());
+        Assert.That(preview.RootElement.GetProperty("markdown").GetBoolean(), Is.True);
+        var targets = new Dictionary<string, string> { [bookId] = bookId };
+        var files = Directory.GetFiles(Path.Combine(app.DataPath, "images"));
+        await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER fail_restore BEFORE UPDATE OF Completed ON RestoreTransfers WHEN NEW.Completed = 1 BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+
+        using var failed = await ConfirmAsync(client, id, "markdown", targets: targets);
+        Assert.That(failed.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
+        Assert.That(await db.DiaryRevisions.CountAsync(x => x.EntryId == original.Id), Is.EqualTo(1));
+        Assert.That((await db.DiaryEntries.AsNoTracking().SingleAsync(x => x.Id == original.Id)).Content, Is.EqualTo(original.Content));
+        Assert.That(Directory.GetFiles(Path.Combine(app.DataPath, "images")), Is.EquivalentTo(files));
+
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER fail_restore");
+        using var success = await ConfirmAsync(client, id, "markdown", targets: targets);
+        Assert.That(success.StatusCode, Is.EqualTo(HttpStatusCode.OK), await success.Content.ReadAsStringAsync());
+        using var retry = await ConfirmAsync(client, id, "markdown", targets: targets);
+        Assert.That(retry.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var updated = await db.DiaryEntries.AsNoTracking().SingleAsync(x => x.Id == original.Id);
+        Assert.That(updated.Content, Does.Contain("外部で編集した本文"));
+        Assert.That(updated.SearchText, Does.Contain("外部で編集した本文"));
+        Assert.That(updated.Version, Is.Not.EqualTo(original.Version));
+        Assert.That(await db.DiaryRevisions.CountAsync(x => x.EntryId == original.Id), Is.Zero);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Id == untouched.Id && x.Content == untouched.Content), Is.True);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.DeletedAt != null && x.Content == "ゴミ箱本文"), Is.True);
+        Assert.That((await db.Notebooks.AsNoTracking().SingleAsync(x => x.Id == bookId)).Template, Is.EqualTo(book.Template));
+        Assert.That(await db.TaskRecords.CountAsync(x => x.NotebookId == bookId), Is.EqualTo(1));
+        var imageIds = scope.ServiceProvider.GetRequiredService<DiaryMarkdown>().ImageIds(updated.Content);
+        Assert.That(imageIds, Has.Count.EqualTo(1));
+        Assert.That(imageIds.Contains(originalImage.Id), Is.EqualTo(!includeImages));
+        Assert.That(await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(book.UserId, updated.Content), Does.Contain("<img ").And.Not.Contain("missing-image"));
+    }
+
+    /// <summary>別アカウントには同梱画像だけを移し、画像なしZIPから他人の画像へ接続しない</summary>
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task MarkdownNewNotebookNeverReusesForeignImages(bool includeImages)
+    {
+        await using var app = new TestApplication();
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        var bookId = await SeedAsync(app, source);
+        var id = await StartAsync(target);
+        using var upload = await UploadAsync(target, id, await ExportAsync(source, "markdown", bookId, includeImages));
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+        using var invalid = await AuthClient.PostAsync(target, $"/api/data/restore/{id}/preview", new()
+        {
+            ["mode"] = "markdown",
+            ["targets"] = JsonSerializer.Serialize(new Dictionary<string, string> { [bookId] = bookId })
+        });
+        Assert.That(invalid.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
+        using var restored = await ConfirmAsync(target, id, "markdown");
+        Assert.That(restored.StatusCode, Is.EqualTo(HttpStatusCode.OK), await restored.Content.ReadAsStringAsync());
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Where(x => x.UserName == "target").Select(x => x.Id).SingleAsync();
+        var book = await db.Notebooks.SingleAsync(x => x.UserId == owner);
+        var entry = await db.DiaryEntries.SingleAsync(x => x.NotebookId == book.Id);
+        var foreignImage = await db.DiaryImages.Where(x => x.UserId != owner).Select(x => x.Id).SingleAsync();
+        Assert.That(entry.Content, Does.Not.Contain(foreignImage));
+        Assert.That(await db.DiaryImages.CountAsync(x => x.UserId == owner), Is.EqualTo(includeImages ? 1 : 0));
+        Assert.That(await db.DiaryRevisions.AnyAsync(x => x.EntryId == entry.Id), Is.False);
+        var html = await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(owner, entry.Content);
+        Assert.That(html.Contains("<img ", StringComparison.Ordinal), Is.EqualTo(includeImages));
+    }
+
+    /// <summary>編集可能なZIPでも日付不一致・空本文・パス逸脱を反映前に拒否する</summary>
+    [TestCase("date")]
+    [TestCase("empty")]
+    [TestCase("path")]
+    public async Task InvalidMarkdownDoesNotChangeExistingData(string damage)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await SeedAsync(app, client);
+        var original = await ExportAsync(client, "markdown", book);
+        var bytes = EditMarkdown(original, text => damage switch
+        {
+            "date" => text.Replace("date: 2020-05-10", "date: 2020-05-11", StringComparison.Ordinal),
+            "empty" => text[..(text.IndexOf("\n---\n", StringComparison.Ordinal) + 5)] + "\n",
+            _ => text
+        }, damage == "path" ? "../outside.md" : null);
+
+        var id = await StartAsync(client);
+        using var rejected = await UploadAsync(client, id, bytes);
+        Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest), await rejected.Content.ReadAsStringAsync());
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.That(await db.DiaryRevisions.CountAsync(), Is.EqualTo(1));
+        Assert.That(await db.RestoreTransfers.AnyAsync(x => x.Ready), Is.False);
+    }
+
+    /// <summary>利用者が本文だけを編集して再圧縮する操作を再現する</summary>
+    private static byte[] EditMarkdown(byte[] bytes, Func<string, string> edit, string? rename = null)
+    {
+        using var stream = new MemoryStream();
+        stream.Write(bytes);
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Update, true))
+        {
+            var entry = zip.Entries.Single(x => x.FullName.EndsWith(".md", StringComparison.Ordinal));
+            var name = rename ?? entry.FullName;
+            var text = edit(ReadText(entry));
+            entry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry(name).Open(), new UTF8Encoding(false));
+            writer.Write(text);
+        }
+
+        return stream.ToArray();
+    }
+
+    /// <summary>置き換えはゴミ箱も削除するが認証・他人の記録を維持し、DB失敗時は元に戻す</summary>
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task ReplacementIsAtomicAndKeepsIdentity(bool includeImages)
+    {
+        await using var app = NotificationTests.Application(new RecordingPush());
+        using var client = app.CreateBrowser();
+        using var other = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        await AuthClient.RegisterAsync(app, other, "other", false);
+        var original = await SeedAsync(app, client);
+        var foreignBook = await DiaryClient.CreateBookAsync(other, "他人の日記帳");
+        await NotificationTests.EnableAsync(client);
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, await ExportAsync(client, includeImages: includeImages));
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Notebooks.Where(x => x.Id == original).Select(x => x.UserId).SingleAsync();
+        var identity = await db.Users.AsNoTracking().SingleAsync(x => x.Id == owner);
+        var files = Directory.GetFiles(Path.Combine(app.DataPath, "images"));
+        await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER fail_restore BEFORE UPDATE OF Completed ON RestoreTransfers WHEN NEW.Completed = 1 BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+
+        using var failed = await ConfirmAsync(client, id, "replace");
+        Assert.That(failed.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
+        Assert.That(await db.Notebooks.IgnoreQueryFilters().CountAsync(x => x.UserId == owner), Is.EqualTo(2));
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "ゴミ箱本文"), Is.True);
+        Assert.That(Directory.GetFiles(Path.Combine(app.DataPath, "images")), Is.EquivalentTo(files));
+
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER fail_restore");
+        using var success = await ConfirmAsync(client, id, "replace");
+        Assert.That(success.StatusCode, Is.EqualTo(HttpStatusCode.OK), await success.Content.ReadAsStringAsync());
+        var restored = await db.Notebooks.SingleAsync(x => x.UserId == owner);
+        Assert.That(restored.Id, Is.Not.EqualTo(original));
+        Assert.That(await db.Notebooks.IgnoreQueryFilters().AnyAsync(x => x.UserId == owner && x.DeletedAt != null), Is.False);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "ゴミ箱本文"), Is.False);
+        Assert.That(await db.Notebooks.AnyAsync(x => x.Id == foreignBook), Is.True);
+        Assert.That((await db.Users.AsNoTracking().SingleAsync(x => x.Id == owner)).PasswordHash, Is.EqualTo(identity.PasswordHash));
+        Assert.That(await db.PushDevices.AnyAsync(x => x.UserId == owner && x.Enabled), Is.True);
+        Assert.That(await db.DiaryImages.CountAsync(x => x.UserId == owner), Is.EqualTo(includeImages ? 1 : 0));
+        var content = await db.DiaryEntries.Where(x => x.NotebookId == restored.Id).Select(x => x.Content).SingleAsync();
+        Assert.That(content, Does.Contain("attachment:"));
+        if (!includeImages)
+        {
+            Assert.That(await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(owner, content), Does.Contain("バックアップに未収録"));
+        }
+    }
+
+    /// <summary>追加復元の全日記帳指定を復元した日記帳に限定し、既存の記念日を変更しない</summary>
+    [Test]
+    public async Task AppendScopesGlobalAnniversariesToRestoredBooks()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await DiaryClient.CreateBookAsync(client, "日記");
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Notebooks.Where(x => x.Id == book).Select(x => x.UserId).SingleAsync();
+        var anniversary = new Anniversary { UserId = owner, Title = "全体の記念日", Month = 1, Day = 1 };
+        db.Anniversaries.Add(anniversary);
+        await db.SaveChangesAsync();
+
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, await ExportAsync(client));
+        using var result = await ConfirmAsync(client, id);
+        Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.OK), await result.Content.ReadAsStringAsync());
+        var addedBook = await db.Notebooks.SingleAsync(x => x.Name == "日記-2");
+        var added = await db.Anniversaries.Include(x => x.Notebooks).SingleAsync(x => x.Id != anniversary.Id);
+        Assert.That(added.AllNotebooks, Is.False);
+        Assert.That(added.Notebooks.Select(x => x.NotebookId), Is.EqualTo(new[] { addedBook.Id }));
+        Assert.That((await db.Anniversaries.AsNoTracking().SingleAsync(x => x.Id == anniversary.Id)).AllNotebooks, Is.True);
+    }
+
+    /// <summary>完全削除済み画像の参照を含む本文も移せるが、画像実体はバックアップから復活しない</summary>
+    [Test]
+    public async Task DeletedImageReferencesRoundTripWithoutRestoringImage()
+    {
+        await using var app = new TestApplication();
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        await SeedAsync(app, source);
+        string image;
+        await using (var setup = app.Services.CreateAsyncScope())
+        {
+            image = await setup.ServiceProvider.GetRequiredService<AppDbContext>().DiaryImages.Select(x => x.Id).SingleAsync();
+        }
+
+        using var deleted = await AuthClient.PostAsync(source, $"/api/images/{image}/delete", new()
+        {
+            ["draftId"] = Guid.NewGuid().ToString(),
+            ["content"] = "",
+            ["confirmed"] = "true",
+            ["permanently"] = "true",
+            ["referencesConfirmed"] = "true"
+        });
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var bytes = await ExportAsync(source);
+        using (var zip = new ZipArchive(new MemoryStream(bytes)))
+        {
+            Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)), Is.False);
+        }
+
+        var transfer = await StartAsync(target);
+        using var upload = await UploadAsync(target, transfer, bytes);
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+        using var restored = await ConfirmAsync(target, transfer);
+        Assert.That(restored.StatusCode, Is.EqualTo(HttpStatusCode.OK), await restored.Content.ReadAsStringAsync());
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Where(x => x.UserName == "target").Select(x => x.Id).SingleAsync();
+        var book = await db.Notebooks.SingleAsync(x => x.UserId == owner);
+        var entry = await db.DiaryEntries.SingleAsync(x => x.NotebookId == book.Id);
+        Assert.That(entry.Content, Does.Contain("現在の本文").And.Contain("attachment:").And.Not.Contain(image));
+        Assert.That(book.Template, Does.Contain("attachment:").And.Not.Contain(image));
+        Assert.That(await db.DiaryImages.CountAsync(), Is.Zero);
+        Assert.That(await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(owner, entry.Content), Does.Contain("画像が見つかりません"));
+    }
+
+    /// <summary>履歴・画像・タスク・記念日を移し、認証とゴミ箱を除外し、再送で重複しない</summary>
+    [Test]
+    public async Task RoundTripRemapsOwnershipAndPreservesNotificationDevices()
+    {
+        await using var app = NotificationTests.Application(new RecordingPush());
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        var original = await SeedAsync(app, source);
+        var empty = await DiaryClient.CreateBookAsync(target, "残す空の日記帳");
+        await NotificationTests.EnableAsync(target);
+
+        var bytes = await ExportAsync(source);
+        using (var zip = new ZipArchive(new MemoryStream(bytes)))
+        {
+            var text = string.Join("\n", zip.Entries.Where(x => x.FullName.EndsWith(".json", StringComparison.Ordinal)).Select(ReadText));
+            Assert.That(text, Does.Not.Contain("PasswordHash").And.Not.Contain("ProtectedSubscription").And.Not.Contain("ゴミ箱本文").And.Not.Contain("削除帳本文"));
+            foreach (var record in zip.Entries.Where(x => x.FullName.EndsWith(".json", StringComparison.Ordinal) && x.FullName != "manifest.json"))
+            {
+                using var json = JsonDocument.Parse(ReadText(record));
+                var names = json.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+                Assert.That(names, Has.None.EqualTo("UserId"));
+                Assert.That(names, Has.None.EqualTo("Version"));
+                Assert.That(names, Has.None.EqualTo("PlainText"));
+                Assert.That(names, Has.None.EqualTo("SearchText"));
+                Assert.That(names, Has.None.EqualTo("NotificationAfter"));
+                Assert.That(names, Has.None.EqualTo("RuleJson"));
+                Assert.That(names, Has.None.EqualTo("ReminderJson"));
+            }
+
+            Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)), Is.True);
+        }
+
+        var id = await StartAsync(target);
+        using var upload = await UploadAsync(target, id, bytes);
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+        using var preview = JsonDocument.Parse(await upload.Content.ReadAsStringAsync());
+        Assert.That(preview.RootElement.GetProperty("problem").ValueKind, Is.EqualTo(JsonValueKind.Null));
+        using var confirm = await ConfirmAsync(target, id);
+        Assert.That(confirm.StatusCode, Is.EqualTo(HttpStatusCode.OK), await confirm.Content.ReadAsStringAsync());
+        using var retry = await ConfirmAsync(target, id);
+        Assert.That(retry.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Where(x => x.UserName == "target").Select(x => x.Id).SingleAsync();
+        var books = await db.Notebooks.Where(x => x.UserId == owner).ToListAsync();
+        var restored = books.Single(x => x.Name == "移行する日記帳");
+        var entry = await db.DiaryEntries.SingleAsync(x => x.NotebookId == restored.Id);
+        var image = await db.DiaryImages.SingleAsync(x => x.UserId == owner);
+        var series = await db.TaskSeries.SingleAsync(x => x.NotebookId == restored.Id);
+        var segment = await db.TaskSegments.SingleAsync(x => x.SeriesId == series.Id);
+        var task = await db.TaskRecords.SingleAsync(x => x.NotebookId == restored.Id);
+        var anniversary = await db.Anniversaries.Include(x => x.Notebooks).SingleAsync(x => x.UserId == owner);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(books.Select(x => x.Id), Does.Contain(empty));
+            Assert.That(books.Count, Is.EqualTo(2));
+            Assert.That(restored.Id, Is.Not.EqualTo(original));
+            Assert.That(restored.Archived, Is.True);
+            Assert.That(restored.TasksPausedOn, Is.EqualTo(new DateOnly(2020, 1, 4)));
+            Assert.That(entry.Content, Does.Contain("attachment:" + image.Id));
+            Assert.That(entry.SearchText, Does.Contain("現在の本文"));
+            Assert.That(restored.Template, Does.Contain("attachment:" + image.Id));
+            Assert.That(task.Id, Is.EqualTo(TaskSchedule.Key(segment.Id, new DateOnly(2020, 1, 2))));
+            Assert.That(task.CompletedAt, Is.Not.Null);
+            Assert.That(task.Memo, Is.EqualTo("操作した回のメモ"));
+            Assert.That(Reminders.Read(segment.ReminderJson).Single().Time, Is.EqualTo("08:30"));
+            Assert.That(Reminders.Read(task.ReminderJson).Single().At, Is.EqualTo("2020-01-02T08:30"));
+            Assert.That(Reminders.Read(task.ReminderJson).Single().Id, Is.Not.EqualTo("00000000000000000000000000000002"));
+            Assert.That(anniversary.Notebooks.Single().NotebookId, Is.EqualTo(restored.Id));
+        });
+        Assert.That(await db.DiaryRevisions.CountAsync(x => x.EntryId == entry.Id), Is.EqualTo(1));
+        Assert.That(await db.DiaryImageReferences.AnyAsync(x => x.EntryId == entry.Id && x.ImageId == image.Id), Is.True);
+        Assert.That(await db.TaskSlots.CountAsync(x => x.SegmentId == segment.Id && x.Frozen), Is.EqualTo(3));
+        Assert.That(await db.PushDevices.AnyAsync(x => x.UserId == owner && x.Enabled), Is.True);
+        Assert.That(await db.RestoreTransfers.CountAsync(x => x.UserId == owner && x.Completed), Is.EqualTo(1));
+        Assert.That(await db.SecurityAuditLogs.CountAsync(x => x.SubjectId == owner && x.Event == "backup.restore"), Is.EqualTo(1));
+
+        using var imageRead = await target.GetAsync("/images/" + image.Id);
+        Assert.That(imageRead.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        using var foreign = await source.GetAsync("/images/" + image.Id);
+        Assert.That(foreign.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    /// <summary>復元の最後でDBが失敗しても本文・画像を部分反映せず、通知端末を維持する</summary>
+    [Test]
+    public async Task CommitFailureRollsBackFilesRecordsAndPushThenAllowsRetry()
+    {
+        await using var app = NotificationTests.Application(new RecordingPush());
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        await SeedAsync(app, source);
+        await NotificationTests.EnableAsync(target);
+        var id = await StartAsync(target);
+        using var upload = await UploadAsync(target, id, await ExportAsync(source));
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK), await upload.Content.ReadAsStringAsync());
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Users.Where(x => x.UserName == "target").Select(x => x.Id).SingleAsync();
+        var before = Directory.GetFiles(Path.Combine(app.DataPath, "images"));
+        await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER fail_restore BEFORE UPDATE OF Completed ON RestoreTransfers WHEN NEW.Completed = 1 BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+
+        using var failure = await ConfirmAsync(target, id);
+        Assert.That(failure.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
+        Assert.That(await db.Notebooks.AnyAsync(x => x.UserId == owner), Is.False);
+        Assert.That(await db.DiaryImages.AnyAsync(x => x.UserId == owner), Is.False);
+        Assert.That(await db.PushDevices.AllAsync(x => x.UserId != owner || x.Enabled), Is.True);
+        Assert.That(Directory.GetFiles(Path.Combine(app.DataPath, "images")), Is.EquivalentTo(before));
+
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER fail_restore");
+        using var retry = await ConfirmAsync(target, id);
+        Assert.That(retry.StatusCode, Is.EqualTo(HttpStatusCode.OK), await retry.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>確認後の記録変更を拒否し、再確認後は同名を避けて追加できる</summary>
+    [Test]
+    public async Task RechecksTargetAndRejectsForeignOperation()
+    {
+        await using var app = new TestApplication();
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        await DiaryClient.CreateBookAsync(source, "同名");
+        var book = await DiaryClient.CreateBookAsync(target, "同名");
+        var id = await StartAsync(target);
+
+        using var upload = await UploadAsync(target, id, await ExportAsync(source));
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(await upload.Content.ReadAsStringAsync(), Does.Contain("同名"));
+        var plan = await PrepareAsync(target, id);
+        using var foreign = await ConfirmAsync(source, id);
+        Assert.That(foreign.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(await source.GetStringAsync("/api/data/restore/status?id=" + id), Does.Contain("none"));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Notebooks.Where(x => x.Id == book).ExecuteUpdateAsync(set => set.SetProperty(x => x.Name, "変更済み"));
+        await DiaryClient.SaveVersionAsync(target, book, "確認後に作成した記録");
+        using var occupied = await ConfirmAsync(target, id, planToken: plan);
+        Assert.That(occupied.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That(await db.Notebooks.CountAsync(), Is.EqualTo(2));
+
+        await db.Notebooks.Where(x => x.Id == book).ExecuteUpdateAsync(set => set.SetProperty(x => x.Name, "同名"));
+        using var appended = await ConfirmAsync(target, id);
+        Assert.That(appended.StatusCode, Is.EqualTo(HttpStatusCode.OK), await appended.Content.ReadAsStringAsync());
+        Assert.That(await db.Notebooks.AnyAsync(x => x.Name == "同名-2"), Is.True);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "確認後に作成した記録"), Is.True);
+    }
+
+    /// <summary>Markdown出力には現行本文だけを含め、画像参照を書き換えコード例は変えない</summary>
+    [Test]
+    public async Task MarkdownExportPreservesTextAndExcludesHistory()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await SeedAsync(app, client);
+        var bytes = await ExportAsync(client, "markdown", book);
+        using var zip = new ZipArchive(new MemoryStream(bytes));
+        var entry = zip.Entries.Single(x => x.FullName.EndsWith(".md", StringComparison.Ordinal));
+        var content = ReadText(entry);
+        Assert.Multiple(() =>
+        {
+            Assert.That(content, Does.StartWith("---\ndate: 2020-05-10\n"));
+            Assert.That(content, Does.Contain("![写真](../assets/"));
+            Assert.That(content, Does.Not.Contain("過去版の本文"));
+            Assert.That(content, Does.Contain("`![例](attachment:00000000000000000000000000000001)`"));
+            Assert.That(zip.GetEntry("manifest.json"), Is.Null);
+            Assert.That(zip.GetEntry("markdown.json"), Is.Not.Null);
+            Assert.That(zip.Entries.Count, Is.EqualTo(3));
+        });
+    }
+
+    /// <summary>画像なしでも本文・履歴・テンプレートを保持し、画像実体を出力しない</summary>
+    [TestCase("backup")]
+    [TestCase("markdown")]
+    public async Task ExportWithoutImagesPreservesReferences(string kind)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        await SeedAsync(app, client);
+
+        var bytes = await ExportAsync(client, kind, includeImages: false);
+        using var zip = new ZipArchive(new MemoryStream(bytes));
+        Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)
+            || x.FullName.StartsWith("images/", StringComparison.Ordinal)), Is.False);
+        var metadata = zip.GetEntry(kind == "backup" ? "manifest.json" : "markdown.json") ?? throw new InvalidDataException();
+        using var manifest = JsonDocument.Parse(ReadText(metadata));
+        Assert.That(manifest.RootElement.GetProperty("IncludesImages").GetBoolean(), Is.False);
+        var text = string.Join("\n", zip.Entries.Select(ReadText));
+        Assert.That(text, Does.Contain(kind == "backup" ? "attachment:" : "../assets/"));
+        if (kind == "backup")
+        {
+            Assert.That(zip.Entries.Count(x => x.FullName.StartsWith("revisions/", StringComparison.Ordinal)), Is.EqualTo(1));
+        }
+    }
+
+    /// <summary>リンク形式だけを変換し、コード・通常リンク・角括弧付きURLを正しく区別する</summary>
+    [Test]
+    public void ImageRewritePreservesMarkdownSyntax()
+    {
+        const string id = "0123456789abcdef0123456789abcdef";
+        var markdown = new DiaryMarkdown();
+        var text = $"![a](<attachment:{id}>)\n![b][photo]\n\n[photo]: attachment:{id} \"title\"\n\n`![code](attachment:{id})`\n[link](attachment:{id})";
+        var rewritten = markdown.RewriteImages(text, _ => "assets/image.png");
+        Assert.That(rewritten, Is.EqualTo($"![a](<assets/image.png>)\n![b][photo]\n\n[photo]: assets/image.png \"title\"\n\n`![code](attachment:{id})`\n[link](attachment:{id})"));
+    }
+
+    /// <summary>壊れた目録・パス・重複・参照を反映前に拒否する</summary>
+    [TestCase("path")]
+    [TestCase("duplicate")]
+    [TestCase("version")]
+    [TestCase("checksum")]
+    [TestCase("foreign-book")]
+    [TestCase("null")]
+    [TestCase("missing-id")]
+    [TestCase("missing-content")]
+    [TestCase("null-content")]
+    [TestCase("internal-field")]
+    public async Task RejectsInvalidArchivesWithoutWritingRecords(string damage)
+    {
+        await using var app = new TestApplication();
+        using var source = app.CreateBrowser();
+        using var target = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, source);
+        await AuthClient.RegisterAsync(app, target, "target", false);
+        var book = await DiaryClient.CreateBookAsync(source);
+        await DiaryClient.SaveVersionAsync(source, book, "元の本文");
+        var bytes = Damage(await ExportAsync(source), damage);
+        var id = await StartAsync(target);
+
+        using var result = await UploadAsync(target, id, bytes);
+        Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest), await result.Content.ReadAsStringAsync());
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.That(await db.DiaryEntries.CountAsync(), Is.EqualTo(1));
+        Assert.That(await db.RestoreTransfers.AnyAsync(x => x.Ready), Is.False);
+        Assert.That(File.Exists(scope.ServiceProvider.GetRequiredService<BackupService>().PathFor(id)), Is.False);
+    }
+
+    /// <summary>小さな試験上限で実読み取り量の境界を検証する</summary>
+    [Test]
+    public async Task CopyStopsBeforeWritingPastLimit()
+    {
+        using var input = new MemoryStream(new byte[10]);
+        using var output = new MemoryStream();
+        await Assert.ThatAsync(async () => await BackupArchive.CopyAsync(input, output, 9, CancellationToken.None), Throws.TypeOf<InvalidDataException>());
+        Assert.That(output.Length, Is.Zero);
+
+        input.Position = 0;
+        Assert.That(await BackupArchive.CopyAsync(input, output, 10, CancellationToken.None), Is.EqualTo(10));
+    }
+
+    /// <summary>ホストを再起動し一時ZIPを回収しても、確定済み復元の再送を二重適用しない</summary>
+    [Test]
+    public async Task CompletedRestoreSurvivesRestartAndTemporaryFileCleanup()
+    {
+        var first = new TestApplication { PreserveData = true };
+        string id;
+        await using (first)
+        {
+            using var source = first.CreateBrowser();
+            using var target = first.CreateBrowser();
+            await AuthClient.RegisterAsync(first, source);
+            await AuthClient.RegisterAsync(first, target, "target", false);
+            var book = await DiaryClient.CreateBookAsync(source);
+            await DiaryClient.SaveVersionAsync(source, book, "再起動後も一度だけ復元");
+            id = await StartAsync(target);
+            using var upload = await UploadAsync(target, id, await ExportAsync(source));
+            Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            using var confirm = await ConfirmAsync(target, id);
+            Assert.That(confirm.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        }
+
+        await using var second = new TestApplication(first.DataPath);
+        using var browser = second.CreateBrowser();
+        using var login = await AuthClient.LoginAsync(browser, "target");
+        Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        await using var scope = second.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var backups = scope.ServiceProvider.GetRequiredService<BackupService>();
+        var gate = scope.ServiceProvider.GetRequiredService<Hibitsuzuri.Web.Auth.AuthWriteGate>();
+        await gate.Semaphore.WaitAsync();
+        try
+        {
+            await BackupMaintenance.CleanupAsync(db, backups, second.Clock, CancellationToken.None);
+        }
+        finally
+        {
+            gate.Semaphore.Release();
+        }
+
+        Assert.That(File.Exists(backups.PathFor(id)), Is.False);
+        using var retry = await ConfirmAsync(browser, id);
+        Assert.That(retry.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(await browser.GetStringAsync("/api/data/restore/status?id=" + id), Does.Contain("completed"));
+        Assert.That(await db.DiaryEntries.CountAsync(), Is.EqualTo(2));
+    }
+
+    /// <summary>確認期限が過ぎたZIPでは反映せず、取り消してやり直せる</summary>
+    [Test]
+    public async Task ConfirmationExpiresAndCancellationReleasesUploadSlot()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var bytes = await ExportAsync(client);
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, bytes);
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        app.Clock.Advance(TimeSpan.FromMinutes(61));
+
+        using var expired = await ConfirmAsync(client, id);
+        Assert.That(expired.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        using var cancel = await AuthClient.PostAsync(client, $"/api/data/restore/{id}/cancel");
+        Assert.That(cancel.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var next = await StartAsync(client);
+        Assert.That(next, Is.Not.EqualTo(id));
+    }
+
+    /// <summary>未来に計算した後で期限が到来した索引も、元の調整日を固定して出力する</summary>
+    [Test]
+    public async Task ExportFreezesArrivedSlotsEvenWhenCachedMonthWasNotRecomputed()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await DiaryClient.CreateBookAsync(client);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var series = new TaskSeries { NotebookId = book };
+        var segment = new TaskSegment
+        {
+            SeriesId = series.Id,
+            Title = "元の予定",
+            StartDate = new DateOnly(2020, 1, 1),
+            RuleJson = JsonSerializer.Serialize(new RepeatRule { Count = 1 })
+        };
+        db.TaskSeries.Add(series);
+        db.TaskSegments.Add(segment);
+        db.TaskSlots.Add(new TaskSlot
+        {
+            Id = TaskSchedule.Key(segment.Id, segment.StartDate),
+            SegmentId = segment.Id,
+            ScheduledDate = segment.StartDate,
+            DueDate = new DateOnly(2020, 1, 3),
+            Frozen = false
+        });
+        db.TaskWindows.Add(new TaskWindow { SegmentId = segment.Id, Month = new DateOnly(2020, 1, 1) });
+        await db.SaveChangesAsync();
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportAsync(client)));
+        var slot = JsonSerializer.Deserialize<BackupTaskSlot>(ReadText(zip.Entries.Single(x => x.FullName.StartsWith("slots/", StringComparison.Ordinal))), BackupArchive.Json) ?? throw new InvalidDataException();
+        Assert.Multiple(() =>
+        {
+            Assert.That(slot.ScheduledDate, Is.EqualTo(new DateOnly(2020, 1, 1)));
+            Assert.That(slot.DueDate, Is.EqualTo(new DateOnly(2020, 1, 3)));
+        });
+    }
+
+    /// <summary>保持対象と除外対象が混在するバックアップ元を作る</summary>
+    private static async Task<string> SeedAsync(TestApplication app, HttpClient client)
+    {
+        var bookId = await DiaryClient.CreateBookAsync(client, "移行する日記帳");
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var book = await db.Notebooks.SingleAsync(x => x.Id == bookId);
+        var now = app.Clock.GetUtcNow().ToUnixTimeMilliseconds();
+        var image = new DiaryImage
+        {
+            UserId = book.UserId,
+            NotebookId = book.Id,
+            EntryDate = new DateOnly(2020, 5, 10),
+            Name = "写真.png",
+            MediaType = "image/png",
+            Width = 2,
+            Height = 2,
+            CreatedAt = now
+        };
+        using (var bitmap = new SKBitmap(2, 2))
+        using (var picture = SKImage.FromBitmap(bitmap))
+        using (var encoded = picture.Encode(SKEncodedImageFormat.Png, 100))
+        {
+            var bytes = encoded.ToArray();
+            image.Length = bytes.Length;
+            await File.WriteAllBytesAsync(scope.ServiceProvider.GetRequiredService<ImageStore>().PathFor(image.Id), bytes);
+        }
+
+        db.DiaryImages.Add(image);
+        db.ImageDraftLeases.Add(new ImageDraftLease { ImageId = image.Id, DraftId = Guid.NewGuid().ToString(), ExpiresAt = now + 60000 });
+        await db.SaveChangesAsync();
+        var version = await DiaryClient.SaveVersionAsync(client, bookId, "過去版の本文");
+        await DiaryClient.SaveVersionAsync(client, bookId, $"現在の本文\n![写真](attachment:{image.Id})\n`![例](attachment:00000000000000000000000000000001)`", version);
+
+        book.Archived = true;
+        book.TasksPausedOn = new DateOnly(2020, 1, 4);
+        book.Template = $"テンプレート\n![写真](attachment:{image.Id})";
+        var deleted = new Notebook { UserId = book.UserId, Name = "削除した日記帳", DeletedAt = now };
+        db.Notebooks.Add(deleted);
+        db.DiaryEntries.AddRange(new DiaryEntry { NotebookId = bookId, EntryDate = new DateOnly(2020, 5, 11), Content = "ゴミ箱本文", DeletedAt = now },
+            new DiaryEntry { NotebookId = deleted.Id, EntryDate = new DateOnly(2020, 5, 12), Content = "削除帳本文" });
+        var series = new TaskSeries { NotebookId = bookId };
+        var segment = new TaskSegment
+        {
+            SeriesId = series.Id,
+            Title = "繰り返し",
+            Memo = "共通メモ",
+            ReminderJson = JsonSerializer.Serialize(new[] { new Reminder { Id = "00000000000000000000000000000001", Kind = "relative", DaysBefore = 1, Time = "08:30" } }),
+            StartDate = new DateOnly(2020, 1, 1),
+            RuleJson = JsonSerializer.Serialize(new RepeatRule { Count = 3 })
+        };
+        db.TaskSeries.Add(series);
+        db.TaskSegments.Add(segment);
+        db.TaskRecords.Add(new TaskRecord
+        {
+            Id = TaskSchedule.Key(segment.Id, new DateOnly(2020, 1, 2)),
+            SeriesId = series.Id,
+            SegmentId = segment.Id,
+            NotebookId = bookId,
+            ScheduledDate = new DateOnly(2020, 1, 2),
+            DueDate = new DateOnly(2020, 1, 3),
+            CompletedAt = now,
+            Edited = true,
+            ReminderJson = JsonSerializer.Serialize(new[] { new Reminder { Id = "00000000000000000000000000000002", Kind = "absolute", At = "2020-01-02T08:30" } }),
+            Title = "操作した回",
+            Memo = "操作した回のメモ"
+        });
+        var anniversary = new Anniversary { UserId = book.UserId, Title = "記念日", Month = 2, Day = 29, LeapDayPolicy = "feb28", AllNotebooks = false };
+        anniversary.Notebooks = [new() { AnniversaryId = anniversary.Id, NotebookId = bookId }, new() { AnniversaryId = anniversary.Id, NotebookId = deleted.Id }];
+        db.Anniversaries.Add(anniversary);
+        await db.SaveChangesAsync();
+        return bookId;
+    }
+
+    /// <summary>HTTPの添付ファイル応答を取得する</summary>
+    private static async Task<byte[]> ExportAsync(HttpClient client, string kind = "backup", string book = "", bool includeImages = true)
+    {
+        using var response = await AuthClient.PostAsync(client, "/data/export", new()
+        {
+            ["kind"] = kind,
+            ["bookId"] = book,
+            ["includeImages"] = includeImages.ToString()
+        });
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+        return await response.Content.ReadAsByteArrayAsync();
+    }
+
+    /// <summary>確認前に操作IDを取得する</summary>
+    private static async Task<string> StartAsync(HttpClient client)
+    {
+        using var response = await AuthClient.PostAsync(client, "/api/data/restore", []);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("id").GetString() ?? throw new InvalidDataException();
+    }
+
+    /// <summary>実際のCSRFヘッダーを付けてZIPをストリーム送信する</summary>
+    private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string id, byte[] bytes)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/data/restore/{id}/upload") { Content = new ByteArrayContent(bytes) };
+        request.Headers.Add("RequestVerificationToken", await client.GetStringAsync("/fixture/token"));
+        return await client.SendAsync(request);
+    }
+
+    /// <summary>確認済みの復元を実行する</summary>
+    private static async Task<HttpResponseMessage> ConfirmAsync(HttpClient client, string id, string mode = "append", string? planToken = null,
+        Dictionary<string, string>? targets = null)
+    {
+        planToken ??= await PrepareAsync(client, id, mode, targets);
+        return await AuthClient.PostAsync(client, $"/api/data/restore/{id}/confirm", new()
+        {
+            ["confirmed"] = "true",
+            ["planToken"] = planToken
+        });
+    }
+
+    /// <summary>画面と同じ確認処理で、方式と取り込み先に結び付いた確認票を取得する</summary>
+    private static async Task<string> PrepareAsync(HttpClient client, string id, string mode = "append", Dictionary<string, string>? targets = null)
+    {
+        using var response = await AuthClient.PostAsync(client, $"/api/data/restore/{id}/preview", new()
+        {
+            ["mode"] = mode,
+            ["targets"] = JsonSerializer.Serialize(targets)
+        });
+        if (!response.IsSuccessStatusCode)
+        {
+            return "";
+        }
+
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("planToken").GetString() ?? throw new InvalidDataException();
+    }
+
+    /// <summary>試験用の小さなZIP項目をUTF-8で読む</summary>
+    private static string ReadText(ZipArchiveEntry entry)
+    {
+        using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>チェックサム更新の有無を分けて、構造と意味の両方の破損を再現する</summary>
+    private static byte[] Damage(byte[] bytes, string damage)
+    {
+        using var stream = new MemoryStream();
+        stream.Write(bytes);
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Update, true))
+        {
+            var manifestEntry = zip.GetEntry("manifest.json") ?? throw new InvalidDataException();
+            var manifest = JsonSerializer.Deserialize<BackupManifest>(ReadText(manifestEntry)) ?? throw new InvalidDataException();
+            if (damage == "path")
+            {
+                zip.CreateEntry("../outside.txt");
+            }
+            else if (damage == "duplicate")
+            {
+                zip.CreateEntry("manifest.json");
+            }
+            else if (damage == "version")
+            {
+                manifest = manifest with
+                {
+                    Version = 999
+                };
+            }
+            else
+            {
+                var entry = zip.Entries.Single(x => x.FullName.StartsWith("entries/", StringComparison.Ordinal));
+                var name = entry.FullName;
+                var record = JsonSerializer.Deserialize<BackupEntry>(ReadText(entry), BackupArchive.Json) ?? throw new InvalidDataException();
+                if (damage is "checksum" or "foreign-book")
+                {
+                    record = record with
+                    {
+                        NotebookId = Guid.NewGuid().ToString("N")
+                    };
+                }
+
+                entry.Delete();
+                var content = damage == "null" ? "null"u8.ToArray() : JsonSerializer.SerializeToUtf8Bytes(record);
+                if (damage is "missing-id" or "missing-content" or "null-content" or "internal-field")
+                {
+                    var json = System.Text.Json.Nodes.JsonNode.Parse(content)?.AsObject() ?? throw new InvalidDataException();
+                    if (damage is "missing-id" or "missing-content")
+                    {
+                        json.Remove(damage == "missing-id" ? "Id" : "Content");
+                    }
+                    else if (damage == "null-content")
+                    {
+                        json["Content"] = null;
+                    }
+                    else
+                    {
+                        json["Version"] = Guid.NewGuid().ToString("N");
+                    }
+
+                    content = JsonSerializer.SerializeToUtf8Bytes(json);
+                }
+
+                using (var writer = zip.CreateEntry(name).Open())
+                {
+                    writer.Write(content);
+                }
+
+                if (damage != "checksum")
+                {
+                    var index = manifest.Files.FindIndex(x => x.Path == name);
+                    manifest.Files[index] = new BackupFile(name, content.Length, Convert.ToHexStringLower(SHA256.HashData(content)));
+                }
+            }
+
+            if (damage is not ("path" or "duplicate"))
+            {
+                manifestEntry.Delete();
+                using var writer = zip.CreateEntry("manifest.json").Open();
+                JsonSerializer.Serialize(writer, manifest);
+            }
+        }
+
+        return stream.ToArray();
+    }
+}

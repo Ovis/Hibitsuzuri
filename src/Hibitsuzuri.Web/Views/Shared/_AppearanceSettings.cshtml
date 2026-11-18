@@ -1,0 +1,30 @@
+<section class="paper appearance-settings" aria-labelledby="appearance-title">
+    <div class="section-heading"><span class="eyebrow">APPEARANCE</span><h2 id="appearance-title">外観</h2></div>
+    <label class="theme-toggle" for="appearance-mode">
+        <span><strong>ダークテーマ</strong><span class="muted">濃紺を基調とした、落ち着いた配色</span></span>
+        <input id="appearance-mode" type="checkbox" role="switch" disabled />
+    </label>
+    <fieldset id="light-colors" aria-describedby="color-help" disabled>
+        <legend>ライトテーマのカラー</legend>
+        <div class="color-options">
+            @foreach (var color in new[] { (Id: "neutral", Name: "ニュートラル"), (Id: "purple", Name: "スモーキーパープル"), (Id: "warm", Name: "ウォームグレー"), (Id: "blue", Name: "ミストブルー") })
+            {
+                <label class="color-choice"><input type="radio" name="appearance-color" value="@color.Id" /><span>@color.Name</span></label>
+            }
+        </div>
+    </fieldset>
+    <p id="color-help" class="muted">ダークでは固定の配色を使います。ライトの配色は保持されます。</p>
+    <div class="appearance-preview" aria-labelledby="appearance-preview-title">
+        <h3 id="appearance-preview-title">プレビュー</h3>
+        <article class="preview-diary">
+            <div class="diary-heading"><span class="preview-date">11月11日 <span class="muted">水曜日</span></span><span class="preview-action"><partial name="_Icon" model='"edit"' />編集する</span></div>
+            <h4>少し遠回りして、帰る。</h4>
+            <p>川沿いを歩くと、銀杏が黄色く色づいていた。</p>
+            <blockquote>遠回りした道にも、季節があった。</blockquote>
+            <span class="muted">本文と配色の見え方を確認するためのサンプルです。</span>
+        </article>
+    </div>
+    <p id="appearance-status" class="muted" role="status">外観設定はこのブラウザに保存されます。</p>
+    <p id="appearance-warning" class="notice" role="alert" hidden></p>
+    <noscript><p class="notice">表示設定を変更するにはJavaScriptを有効にしてください。</p></noscript>
+</section>

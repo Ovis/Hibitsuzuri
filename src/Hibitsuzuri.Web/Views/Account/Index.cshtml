@@ -1,0 +1,33 @@
+@model Hibitsuzuri.Web.Auth.AppUser
+@{
+    ViewData["Title"] = "アカウント";
+    ViewData["Navigation"] = "account";
+}
+
+<div class="page-heading"><h1>アカウント</h1></div>
+<section class="paper settings-panel">
+    <h2>@Model.UserName</h2>
+    <p><a href="/settings/images">画像の保存設定</a></p>
+    @if (Model.IsAdmin)
+    {
+        <p><a href="/admin/users">ユーザー管理</a></p>
+        <p><a href="/admin/holidays">祝日データの管理</a></p>
+        <p><a href="/admin/audit">監査ログ</a></p>
+    }
+    <p>ユーザーIDは変更できません。</p>
+    <p>Passkeyを登録すると、端末の本人確認でログインできます。登録は後からでも可能です。</p>
+    <div class="actions">
+        <a class="button" href="/account/passkeys">Passkey管理</a>
+        <a class="button" href="/account/password">パスワード変更</a>
+        <a class="button" href="/account/reauthenticate">本人確認</a>
+    </div>
+
+    <h2 id="recovery-codes">リカバリーコードの再生成</h2>
+    <p>古いコードはすべて無効になります。直近10分以内の本人確認が必要です。</p>
+    <form method="post" action="/account/codes" class="account-form">
+        @Html.AntiForgeryToken()
+        <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 古いコードを無効にし、新しいコードを保存する</label>
+        <button class="button" type="submit">コードを再生成</button>
+    </form>
+</section>
+<p class="spacer"><a href="/about">アプリについて・ライセンス</a></p>

@@ -1,0 +1,19 @@
+@model Hibitsuzuri.Web.Diary.DiaryYears
+@inject Hibitsuzuri.Web.Images.ImageStore Images
+@{
+    ViewData["Title"] = "同じ月日の日記";
+    ViewData["Navigation"] = "home";
+}
+<header class="page-header"><p class="eyebrow">@Model.Book.Name</p><h1>@Model.Date.ToString("M月d日") の日記</h1></header>
+<p><a href="/diary/@Model.Book.Id/@Model.Date.ToString("yyyy-MM-dd")">日記へ戻る</a></p>
+@if (Model.Entries.Count == 0)
+{
+    <p class="paper">この月日の日記はまだありません。</p>
+}
+@foreach (var entry in Model.Entries)
+{
+    <section class="paper record-card spacer">
+        <div class="diary-heading"><h2>@entry.EntryDate.Year 年</h2><a class="button quiet small" aria-label="@entry.EntryDate.ToString("yyyy年M月d日")を開く" href="/diary/@Model.Book.Id/@entry.EntryDate.ToString("yyyy-MM-dd")">この日を開く <partial name="_Icon" model='"right"' /></a></div>
+        <article class="prose">@Html.Raw(await Images.RenderAsync(Model.Book.UserId, entry.Content))</article>
+    </section>
+}

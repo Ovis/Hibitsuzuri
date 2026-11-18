@@ -1,0 +1,64 @@
+@using System.Security.Claims
+@{
+    var preferenceOwner = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var preferenceKey = preferenceOwner is null
+        ? "hibitsuzuri.appearance.anonymous"
+        : $"hibitsuzuri.appearance.user.{preferenceOwner}";
+    var authenticated = User.Identity?.IsAuthenticated == true;
+}
+
+<!DOCTYPE html>
+<html lang="ja" data-theme="light" data-color="neutral" data-appearance-key="@preferenceKey" data-owner="@preferenceOwner">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f3f0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script src="~/js/pwa.js" asp-append-version="true" defer></script>
+    <title>@ViewData["Title"] - Hibitsuzuri</title>
+    <link rel="icon" href="~/images/book.svg" type="image/svg+xml" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="~/js/appearance.js" asp-append-version="true"></script>
+    <script src="~/js/navigation.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <a class="skip-link" href="#main">本文へ移動</a>
+    <div class="@(authenticated ? "shell" : "auth-shell")">
+        @if (authenticated)
+        {
+            @await Component.InvokeAsync("Navigation")
+        }
+        else
+        {
+            <aside class="auth-art">
+                <div><partial name="_Brand" /><p class="brand-sub">日々を、綴る。</p></div>
+                <div><h1>今日という一日を、<br />あなたの言葉で。</h1><p>小さな出来事も、忘れたくない気持ちも。<br />日々の記録を、あなたの手元に。</p></div>
+                <p>Hibitsuzuri — 日々を、綴る。</p>
+            </aside>
+        }
+        <div class="workspace">
+            @if (authenticated)
+            {
+                <header class="topbar"><div class="breadcrumb">@(ViewData["BookName"] ?? "Hibitsuzuri")<span>/</span>@ViewData["Title"]</div></header>
+            }
+            <main id="main" class="@(authenticated ? "main" : "auth-main")" tabindex="-1">
+                <div class="@(authenticated ? "content" : "auth-card")">@RenderBody()</div>
+            </main>
+        </div>
+    </div>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <dialog id="page-dialog" class="form-dialog page-dialog" aria-labelledby="page-dialog-title">
+            <header class="dialog-heading"><h2 id="page-dialog-title"></h2><button type="button" data-close-page-dialog aria-label="閉じる">×</button></header>
+            <p class="notice" role="alert" hidden></p>
+            <div class="dialog-body" data-page-dialog-body></div>
+        </dialog>
+        <script src="~/js/page-dialog.js" asp-append-version="true" defer></script>
+        <dialog id="image-lightbox" aria-label="画像の拡大表示">
+            <button type="button" data-close-image autofocus>閉じる</button>
+            <img alt="拡大した添付画像" />
+        </dialog>
+        <script src="~/js/image-lightbox.js" asp-append-version="true" defer></script>
+    }
+</body>
+</html>

@@ -1,0 +1,118 @@
+@model Hibitsuzuri.Web.Diary.DiaryPage
+@{
+    ViewData["Title"] = Model.Day;
+    ViewData["Navigation"] = "home";
+    ViewData["BookName"] = Model.Book.Name;
+    var holidayName = Model.Calendar?.Holidays.GetValueOrDefault(Model.Date);
+}
+
+<div class="reading-layout">
+    <section class="reading-content">
+        <header class="date-heading">
+            <div>
+                <p class="eyebrow">DIARY</p>
+                <h1>@Model.Date.ToString("yyyy年M月d日")</h1>
+                <span class="muted">@Model.Date.ToString("dddd")@(holidayName is null ? "" : $"（祝・{holidayName}）")@(Model.Date == Model.Today ? "　・　今日" : "")</span>
+                @if (Model.Calendar is not null)
+                {
+                    <div class="diary-special-days">
+                        @foreach (var title in Model.Calendar.Anniversaries[Model.Date])
+                        {
+                            <span><partial name="_Icon" model='"star"' />@title</span>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="diary-heading date-actions">
+                <nav class="date-controls" aria-label="日付の移動">
+                    @if (Model.Date > DateOnly.MinValue)
+                    {
+                        <a class="button quiet small" aria-label="前日" href="/diary/@Model.Book.Id/@Model.Date.AddDays(-1).ToString("yyyy-MM-dd")"><partial name="_Icon" model='"left"' /></a>
+                    }
+                    <form method="get" action="/diary/@Model.Book.Id" data-day-picker>
+                        <label class="visually-hidden" for="selected-day">表示する日付</label>
+                        <input type="date" id="selected-day" value="@Model.Day" required />
+                        <button type="submit" class="day-submit small">移動</button>
+                    </form>
+                    @if (Model.Date < DateOnly.MaxValue)
+                    {
+                        <a class="button quiet small" aria-label="翌日" href="/diary/@Model.Book.Id/@Model.Date.AddDays(1).ToString("yyyy-MM-dd")"><partial name="_Icon" model='"right"' /></a>
+                    }
+                </nav>
+                @if (Model.Entry is { DeletedAt: null })
+                {
+                    <a class="button primary" href="@Model.Path/edit"><partial name="_Icon" model='"edit"' />編集する</a>
+                }
+            </div>
+        </header>
+
+        @if (Model.Entry?.DeletedAt is not null)
+        {
+            <section class="empty-diary">
+                <h2>この日の日記はゴミ箱にあります</h2>
+                <p>復元すると編集できます。</p>
+                <form method="post" action="@Model.Path/trash">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="version" value="@Model.Entry.Version" />
+                    <button class="button" name="action" value="restore">復元する</button>
+                </form>
+            </section>
+        }
+        else if (Model.Entry is not null)
+        {
+            <div class="entry">
+                <article class="prose">@Html.Raw(Model.Html)</article>
+                <div class="diary-heading entry-footer">
+                    <span>最終更新 @DateTimeOffset.FromUnixTimeMilliseconds(Model.Entry.UpdatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                    <button class="quiet small" type="button" data-open-dialog="diary-history">編集履歴</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <section class="empty-diary">
+                <div class="empty-icon"><partial name="_Icon" model='"book"' /></div>
+                <h2>この日の日記はありません</h2>
+                @if (Model.Date <= Model.Today)
+                {
+                    <a class="button primary" href="@Model.Path/edit">日記を書く</a>
+                }
+                else
+                {
+                    <p class="muted">未来の日付には日記を作成できません。</p>
+                }
+            </section>
+        }
+
+        <partial name="_Tasks" model="new Hibitsuzuri.Web.Tasks.TaskPage(Model.Books, Model.Book.Id, Model.Today, Model.Date)" />
+    </section>
+    <aside class="reading-aside">
+        <section class="aside-card">
+            <h2>同じ月日の日記</h2>
+            <p class="muted">この日記帳のほかの年の日記</p>
+            <div class="memory-timeline">
+                @foreach (var memory in Model.Memories)
+                {
+                    <a class="memory-link" href="/diary/@Model.Book.Id/@memory.EntryDate.ToString("yyyy-MM-dd")"><strong>@memory.EntryDate.Year</strong><span>@memory.PlainText.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()</span></a>
+                }
+                @if (Model.Memories.Count == 0)
+                {
+                    <p class="muted">ほかの年の同じ月日の日記はまだありません。</p>
+                }
+            </div>
+            <a class="button quiet small" href="@Model.Path/years">すべての年を表示 <partial name="_Icon" model='"right"' /></a>
+        </section>
+        <section class="aside-card mini-calendar">
+            <div class="diary-heading">
+                <h2>@Model.Date.ToString("yyyy年M月")</h2>
+                <a href="/calendar?bookId=@Model.Book.Id&month=@Model.Date.ToString("yyyy-MM")" aria-label="月間カレンダー"><partial name="_Icon" model='"calendar"' /></a>
+            </div>
+            @if (Model.Calendar is not null)
+            {
+                <partial name="_CalendarGrid" model="Model.Calendar" />
+            }
+        </section>
+    </aside>
+</div>
+<partial name="_DiaryHistory" model="Model" />
+<script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

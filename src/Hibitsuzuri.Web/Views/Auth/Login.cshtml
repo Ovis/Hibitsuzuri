@@ -1,0 +1,32 @@
+@model Hibitsuzuri.Web.Models.LoginModel
+@{
+    ViewData["Title"] = "ログイン";
+}
+
+<div class="page-heading"><h1>ログイン</h1></div>
+<section class="paper settings-panel">
+    <form method="post" action="/auth/login" class="account-form" id="login-form">
+        @Html.AntiForgeryToken()
+        <input asp-for="ReturnUrl" type="hidden" />
+        <div asp-validation-summary="All" class="notice" role="alert"></div>
+        <label asp-for="LoginId">ユーザーID<input asp-for="LoginId" autocomplete="username webauthn" maxlength="64" required /></label>
+        <label asp-for="Password">パスワード<input asp-for="Password" autocomplete="current-password" required /></label>
+        <label class="check-label"><input asp-for="RememberMe" /> ログインを30日間保持する</label>
+        <p class="muted">保持しない場合は8時間で期限切れになります。</p>
+        <button class="button primary" type="submit">ログイン</button>
+    </form>
+
+    <form class="account-form passkey-form" data-purpose="login">
+        @Html.AntiForgeryToken()
+        <button class="button" type="submit">Passkeyでログイン</button>
+        <p role="status" class="passkey-status"></p>
+    </form>
+
+    <p><a href="/auth/recovery">リカバリーコードで復旧</a></p>
+    @if (ViewData["RegistrationEnabled"] is true)
+    {
+        <p><a href="/auth/register">ユーザー登録</a></p>
+    }
+</section>
+
+<script src="~/js/passkeys.js" asp-append-version="true" defer></script>

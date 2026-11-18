@@ -1,0 +1,67 @@
+@using Microsoft.AspNetCore.WebUtilities
+@model Hibitsuzuri.Web.Models.SettingsPage
+@{
+    ViewData["Title"] = "設定";
+    ViewData["Navigation"] = "settings";
+}
+
+<header class="page-heading"><p class="eyebrow">SETTINGS</p><h1>設定</h1></header>
+<partial name="_AppearanceSettings" />
+<partial name="_NotificationSettings" />
+<div class="settings-grid">
+    <section class="paper settings-card">
+        <div class="diary-heading">
+            <h2>アカウント</h2>
+            @if (Model.User.IsAdmin)
+            {
+                <span class="tag">管理者</span>
+            }
+        </div>
+        <p>ユーザーID　<strong>@Model.User.UserName</strong><br />ユーザーIDは変更できません。</p>
+        <a class="button" href="/account/password">パスワードを変更</a>
+    </section>
+    <section class="paper settings-card">
+        <h2>パスキー</h2>
+        <p>顔認証や指紋認証などでログインできます。パスワードも引き続き利用できます。</p>
+        @foreach (var key in Model.Passkeys)
+        {
+            <div class="diary-heading">
+                <span>@key.Name</span>
+                <a class="button quiet small" href="/account/passkeys#key-@WebEncoders.Base64UrlEncode(key.CredentialId)">名前変更・削除</a>
+            </div>
+        }
+        @if (Model.Passkeys.Count == 0)
+        {
+            <p>登録されたパスキーはありません。</p>
+        }
+        <a class="button spacer" href="/account/passkeys">＋ パスキーを追加</a>
+    </section>
+    <section class="paper settings-card">
+        <h2>リカバリーコード</h2>
+        <p>ログインできなくなったときの復旧専用コードです。発行済みのコードは再表示できません。</p>
+        <a class="button" href="/account#recovery-codes">コードを再生成</a>
+    </section>
+    <section class="paper settings-card">
+        <h2>日記と管理</h2>
+        <div class="settings-links">
+            <a href="/books">日記帳の管理</a>
+            <a href="@Model.TrashPath">日記のゴミ箱</a>
+            <a href="/anniversaries">記念日の管理</a>
+            <a href="/data">エクスポート・バックアップ・復元</a>
+            <a href="/settings/images">画像の保存設定</a>
+            @if (Model.User.IsAdmin)
+            {
+                <a href="/admin/users">ユーザー管理 <span class="tag">管理者のみ</span></a>
+                <a href="/admin/holidays">祝日データの管理</a>
+                <a href="/admin/audit">監査ログ</a>
+            }
+        </div>
+    </section>
+</div>
+<div class="actions spacer">
+    <form method="post" action="/auth/logout">
+        @Html.AntiForgeryToken()
+        <button class="quiet" type="submit">ログアウト</button>
+    </form>
+    <a class="button quiet" href="/about">アプリについて</a>
+</div>

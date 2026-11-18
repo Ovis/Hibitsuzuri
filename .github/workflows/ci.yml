@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: .NET and Node tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Run Node tests
+        run: node --test 'tests/**/*.test.mjs'
+
+      - name: Run .NET tests
+        run: >-
+          dotnet test Hibitsuzuri.slnx --configuration Release
+          --logger "trx;LogFileName=hibitsuzuri.trx" --results-directory "$RUNNER_TEMP/hibitsuzuri-test-results"
+          --verbosity minimal -m:1 --disable-build-servers
+
+      - name: Upload .NET test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dotnet-test-results
+          path: ${{ runner.temp }}/hibitsuzuri-test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docker:
+    name: Docker startup (linux/amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMPOSE_FILE: .github/compose.ci.yml
+      COMPOSE_PROJECT_NAME: hibitsuzuri-ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the application image
+        run: docker compose build app
+
+      - name: Verify first startup
+        run: |
+          docker compose up --no-build --pull never --wait --wait-timeout 90 app
+          docker compose exec -T app test -s /data/setup-token.txt
+
+      - name: Show container logs on failure
+        if: ${{ failure() }}
+        run: docker compose logs --no-color app
+
+      - name: Remove the test container
+        if: ${{ always() }}
+        run: docker compose down

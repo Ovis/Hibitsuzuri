@@ -1,0 +1,27 @@
+@model Hibitsuzuri.Web.Diary.DiaryPage
+@inject Hibitsuzuri.Web.Images.ImageStore Images
+@if (Model.Entry is { DeletedAt: null })
+{
+    <dialog id="diary-history" class="form-dialog history-dialog" aria-labelledby="history-title" data-history-dialog>
+        <header class="dialog-heading"><h2 id="history-title">編集履歴</h2><button type="button" data-close-dialog aria-label="閉じる">×</button></header>
+        <div class="dialog-body">
+            <p>@Model.Date.ToString("yyyy年M月d日") ／ 本文と画像を一緒に確認します。</p>
+            <label>保存した日時
+                <select data-history-select>
+                    <option value="current">@DateTimeOffset.FromUnixTimeMilliseconds(Model.Entry.UpdatedAt).ToLocalTime().ToString("yyyy年M月d日 HH:mm")（現在）</option>
+                    @foreach (var revision in Model.Revisions)
+                    {
+                        <option value="@revision.Id">@DateTimeOffset.FromUnixTimeMilliseconds(revision.UpdatedAt).ToLocalTime().ToString("yyyy年M月d日 HH:mm")</option>
+                    }
+                </select>
+            </label>
+            <article class="prose" data-history-preview="current">@Html.Raw(Model.Html)</article>
+            @foreach (var revision in Model.Revisions)
+            {
+                <article class="prose" data-history-preview="@revision.Id" hidden>@Html.Raw(await Images.RenderAsync(Model.Book.UserId, revision.Content))</article>
+            }
+            <p class="muted">読み込み後は編集画面で確認し、明示保存します。過去5版を保持します。</p>
+        </div>
+        <footer class="dialog-actions"><a class="button primary" data-history-edit data-edit-path="@Model.Path/edit" href="@Model.Path/edit">この版を編集画面へ読み込む</a></footer>
+    </dialog>
+}

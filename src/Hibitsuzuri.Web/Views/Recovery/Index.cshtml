@@ -1,0 +1,18 @@
+@model Hibitsuzuri.Web.Models.RecoveryModel
+@{
+    ViewData["Title"] = "アカウント復旧";
+}
+
+<div class="page-heading"><h1>アカウント復旧</h1></div>
+<section class="paper settings-panel">
+    <p>未使用のリカバリーコードで本人確認し、新しいパスワードを設定します。完了時に、旧Passkey・全端末のログイン・旧コードを無効にします。</p>
+    <form method="post" action="/auth/recovery" class="account-form">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="notice" role="alert"></div>
+        <label asp-for="LoginId">ユーザーID<input asp-for="LoginId" autocomplete="username" required /></label>
+        <label asp-for="Code">未使用のリカバリーコード<input asp-for="Code" autocomplete="off" required /></label>
+        <button type="submit" class="button primary">復旧を開始</button>
+    </form>
+    <p class="muted">本人確認後10分以内に進めてください。中断した場合、使用したコードは再利用できませんが、変更前のパスワードやPasskeyは維持されます。</p>
+    <a href="/auth/login">ログインへ戻る</a>
+</section>

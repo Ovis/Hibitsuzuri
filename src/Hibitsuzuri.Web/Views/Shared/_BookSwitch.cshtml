@@ -1,0 +1,26 @@
+@model Hibitsuzuri.Web.Navigation.NavigationPage
+@if (Model.Books.Count == 0)
+{
+    <div class="book-picker-empty">日記帳がありません</div>
+}
+else
+{
+    var selected = Model.Selected ?? Model.Books[0];
+    <details class="book-picker" data-book-picker>
+        <summary aria-label="日記帳を切り替える：@selected.Name" title="@selected.Name">
+            <span>@selected.Name@(selected.Archived ? "（アーカイブ）" : "")</span>
+        </summary>
+        <nav class="book-picker-options" aria-label="日記帳の選択">
+            @foreach (var book in Model.Books)
+            {
+                <a href="@Model.Links[book.Id]" aria-current="@(book.Id == selected.Id ? "true" : null)">
+                    <span>@book.Name@(book.Archived ? "（アーカイブ）" : "")</span>
+                    @if (book.Id == selected.Id)
+                    {
+                        <span aria-hidden="true">✓</span>
+                    }
+                </a>
+            }
+        </nav>
+    </details>
+}

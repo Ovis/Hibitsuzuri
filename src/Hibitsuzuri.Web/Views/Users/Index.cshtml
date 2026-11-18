@@ -1,0 +1,61 @@
+@model Hibitsuzuri.Web.Models.UsersModel
+@{
+    ViewData["Title"] = "ユーザー管理";
+}
+
+<div class="page-heading"><h1>ユーザー管理</h1></div>
+<section class="paper settings-panel">
+    <p>操作には直近10分以内の本人確認が必要です。権限変更・利用停止・再開後は、対象ユーザーの再ログインが必要です。</p>
+    <p><a href="/account/reauthenticate?returnUrl=/admin/users">本人確認する</a></p>
+
+    <h2>新規登録の受付：@(Model.RegistrationEnabled ? "ON" : "OFF")</h2>
+    <form method="post" action="/admin/users/registration">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="enabled" value="@((!Model.RegistrationEnabled).ToString().ToLowerInvariant())" />
+        <button class="button" type="submit">@(Model.RegistrationEnabled ? "登録受付を停止" : "登録受付を開始")</button>
+    </form>
+
+    @foreach (var account in Model.Users)
+    {
+        <div class="credential-row">
+            <h2>@account.UserName</h2>
+            <p>@(account.IsAdmin ? "管理者" : "一般ユーザー") ／ @(account.IsSuspended ? "利用停止中" : "利用可能")</p>
+            <form method="post" action="/admin/users/change" class="account-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@account.Id" />
+                <label>操作
+                    <select name="operation">
+                        <option value="@(account.IsSuspended ? "resume" : "suspend")">@(account.IsSuspended ? "利用を再開" : "利用を停止")</option>
+                        <option value="@(account.IsAdmin ? "revoke" : "grant")">@(account.IsAdmin ? "管理者権限を解除" : "管理者権限を付与")</option>
+                    </select>
+                </label>
+                <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 「@account.UserName」への操作内容を確認しました</label>
+                <button class="button" type="submit">適用する</button>
+            </form>
+
+            <details>
+                <summary>ユーザーを完全削除</summary>
+                <p>「@account.UserName」のアカウントと関連データを完全削除します。元に戻せません。</p>
+                <form method="post" action="/admin/users/change" class="account-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@account.Id" />
+                    <input type="hidden" name="operation" value="delete" />
+                    <label>削除するユーザーIDを入力<input name="confirmationName" autocomplete="off" required /></label>
+                    <label class="check-label"><input type="checkbox" name="confirmed" value="true" required /> 完全削除することを確認しました</label>
+                    <button class="button" type="submit">完全削除</button>
+                </form>
+            </details>
+        </div>
+    }
+
+    <nav class="actions" aria-label="一覧のページ">
+        @if (Model.Page > 0)
+        {
+            <a href="/admin/users?page=@(Model.Page - 1)">前のページ</a>
+        }
+        @if (Model.HasMore)
+        {
+            <a href="/admin/users?page=@(Model.Page + 1)">次のページ</a>
+        }
+    </nav>
+</section>

@@ -1,0 +1,26 @@
+@model Hibitsuzuri.Web.Models.RecoveryCodesModel
+@{
+    ViewData["Title"] = "リカバリーコードの保存";
+}
+
+<div class="page-heading"><h1>リカバリーコードの保存</h1></div>
+<section class="paper settings-panel">
+    <p>このコードは一度だけ表示します。パスワードやPasskeyを失ったときの復旧に必要です。安全な場所へ保存してください。</p>
+    <p class="muted">各コードは1回限りです。以前のコードは無効になりました。通常のログインには使用できません。</p>
+
+    <pre id="recovery-codes" class="recovery-codes">@string.Join("\n", Model.Codes)</pre>
+    <div class="actions">
+        <button class="button" type="button" id="copy-codes">コピー</button>
+        <button class="button" type="button" id="download-codes">テキスト保存</button>
+    </div>
+    <p id="codes-status" role="status"></p>
+
+    <form method="post" action="/auth/codes/confirm" class="account-form">
+        @Html.AntiForgeryToken()
+        <label class="check-label"><input type="checkbox" name="saved" value="true" required /> リカバリーコードを保存しました</label>
+        <button type="submit" class="button primary">保存を確認して進む</button>
+    </form>
+    <p class="muted">10分以内に保存を確認してください。中断した場合はログインすると新しいコードを発行できます。</p>
+</section>
+
+<script src="~/js/recovery-codes.js" asp-append-version="true" defer></script>

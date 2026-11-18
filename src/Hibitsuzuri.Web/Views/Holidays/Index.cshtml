@@ -1,0 +1,24 @@
+@model Hibitsuzuri.Web.Calendar.HolidayState
+@{
+    ViewData["Title"] = "祝日データの管理";
+}
+
+<header class="page-heading">
+    <h1>祝日データの管理</h1>
+</header>
+<section class="paper settings-panel">
+    <p>収録範囲：@Model.FirstYear 年～@Model.LastYear 年</p>
+    <p>最終成功：@(Model.LastSuccessAt is long success ? DateTimeOffset.FromUnixTimeMilliseconds(success).ToLocalTime().ToString("yyyy/MM/dd HH:mm") : "外部更新は未実行（同梱データを使用）")</p>
+    <p>最終確認：@(Model.LastAttemptAt is long attempt ? DateTimeOffset.FromUnixTimeMilliseconds(attempt).ToLocalTime().ToString("yyyy/MM/dd HH:mm") : "未実行")</p>
+    @if (Model.Error is not null)
+    {
+        <p class="notice" role="alert">@Model.Error 保存済みデータは維持しています。</p>
+    }
+
+    <p>1日1回、自動で更新を確認します。停止中の確認は、次回起動後の確認周期で行います。</p>
+    <form method="post" action="/admin/holidays/update">
+        @Html.AntiForgeryToken()
+        <button class="button primary" type="submit">今すぐ更新を確認</button>
+    </form>
+    <p class="muted spacer">正常なデータは自動で反映します。未収録年の祝日は推測しません。</p>
+</section>

@@ -1,0 +1,68 @@
+@model Hibitsuzuri.Web.Calendar.AnniversaryPage
+@{
+    ViewData["Title"] = "記念日";
+    ViewData["Navigation"] = "calendar";
+}
+<header class="page-header diary-heading"><h1>記念日</h1><a href="/calendar">カレンダーへ</a></header>
+<section class="paper settings-panel" data-dialog-content>
+    <h2>記念日</h2>
+    <p>誕生日などを毎年同じ月日に表示します。表示する日記帳は1件ごとに選べます。</p>
+    @if (Model.Items.Count == 0)
+    {
+        <p class="muted">記念日はまだありません。</p>
+    }
+    @foreach (var item in Model.Items)
+    {
+        <div class="anniversary-row">
+            <div><strong>@item.Month 月 @item.Day 日　@item.Title</strong>
+                <p class="muted">@(item.AllNotebooks ? "すべての日記帳" : string.Join("、", Model.Books.Where(b => item.Notebooks.Any(n => n.NotebookId == b.Id)).Select(b => b.Name)))</p>
+            </div>
+            <a class="button quiet" href="/anniversaries?id=@item.Id" data-page-dialog data-dialog-target="#anniversary-form">編集</a>
+            <form method="post" action="/anniversaries/@item.Id/delete" data-confirm="この記念日を削除しますか？">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="version" value="@item.Version" />
+                <button class="quiet danger" type="submit">削除</button>
+            </form>
+        </div>
+    }
+    <a class="button primary anniversary-add" href="/anniversaries?create=true" data-page-dialog data-dialog-target="#anniversary-form">＋ 記念日を追加</a>
+</section>
+@if (!Model.IsNew || Context.Request.Query.ContainsKey("create"))
+{
+    <section id="anniversary-form" class="paper settings-panel spacer">
+        <h2>@(Model.IsNew ? "記念日を追加" : "記念日を編集")</h2>
+        <form method="post" action="/anniversaries" class="form-stack">
+            @Html.AntiForgeryToken()
+            @if (!Model.IsNew)
+            {
+                <input type="hidden" name="id" value="@Model.Editing.Id" />
+                <input type="hidden" name="version" value="@Model.Editing.Version" />
+            }
+            <label>名前 <input name="title" value="@Model.Editing.Title" maxlength="100" required /></label>
+            <div class="anniversary-date">
+                <label>月 <input name="month" type="number" min="1" max="12" value="@(Model.IsNew ? 1 : Model.Editing.Month)" required /></label>
+                <label>日 <input name="day" type="number" min="1" max="31" value="@(Model.IsNew ? 1 : Model.Editing.Day)" required /></label>
+            </div>
+            <label>2月29日の非うるう年の扱い
+                <select name="leapDayPolicy">
+                    <option value="skip" selected="@(Model.Editing.LeapDayPolicy == "skip")">表示しない</option>
+                    <option value="feb28" selected="@(Model.Editing.LeapDayPolicy == "feb28")">2月28日に表示</option>
+                    <option value="mar1" selected="@(Model.Editing.LeapDayPolicy == "mar1")">3月1日に表示</option>
+                </select>
+            </label>
+            <fieldset>
+                <legend>表示先</legend>
+                <label><input type="radio" name="allNotebooks" value="true" checked="@Model.Editing.AllNotebooks" />すべての日記帳（今後作成するものを含む）</label>
+                <label><input type="radio" name="allNotebooks" value="false" checked="@(!Model.Editing.AllNotebooks)" />選択した日記帳</label>
+                <div data-anniversary-books>
+                    @foreach (var book in Model.Books)
+                    {
+                        <label><input type="checkbox" name="bookIds" value="@book.Id" checked="@Model.Editing.Notebooks.Any(x => x.NotebookId == book.Id)" />@book.Name</label>
+                    }
+                </div>
+            </fieldset>
+            <div><button class="primary" type="submit">保存</button> <a class="anniversary-cancel" href="/anniversaries" data-page-dialog>入力をやめる</a></div>
+        </form>
+    </section>
+}
+<script src="~/js/diary-navigation.js" asp-append-version="true" defer></script>

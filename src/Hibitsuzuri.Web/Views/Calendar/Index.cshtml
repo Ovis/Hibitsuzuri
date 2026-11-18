@@ -1,0 +1,32 @@
+@model Hibitsuzuri.Web.Calendar.CalendarMonth
+@{
+    ViewData["Title"] = "カレンダー";
+    ViewData["Navigation"] = "calendar";
+    ViewData["BookName"] = Model.Book.Name;
+}
+<header class="page-header diary-heading">
+    <div><p class="eyebrow">CALENDAR</p><h1>カレンダー</h1><p class="muted">日記・未完了タスクの印と、祝日・記念日を表示します。</p></div>
+    <a class="button" href="/anniversaries" data-page-dialog><partial name="_Icon" model='"star"' />記念日を管理</a>
+</header>
+<section class="paper calendar-month">
+    <div class="calendar-heading">
+    <h2>@Model.First.ToString("yyyy年 M月")</h2>
+    <nav class="date-controls" aria-label="月の移動">
+        @if (Model.First > DateOnly.MinValue)
+        {
+            <a class="button quiet" aria-label="前月" href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(-1).ToString("yyyy-MM")"><partial name="_Icon" model='"left"' /></a>
+        }
+        <form method="get" class="calendar-jump" data-month-picker>
+            <input type="hidden" name="bookId" value="@Model.Book.Id" />
+            <label class="visually-hidden" for="calendar-month">表示月</label>
+            <input id="calendar-month" type="month" name="month" value="@Model.First.ToString("yyyy-MM")" required />
+            <noscript><button type="submit">移動</button></noscript>
+        </form>
+        @if (Model.First.Year < 9999 || Model.First.Month < 12)
+        {
+            <a class="button quiet" aria-label="翌月" href="/calendar?bookId=@Model.Book.Id&month=@Model.First.AddMonths(1).ToString("yyyy-MM")"><partial name="_Icon" model='"right"' /></a>
+        }
+    </nav>
+    </div>
+    <partial name="_CalendarGrid" model="Model" />
+</section>

@@ -1,0 +1,63 @@
+@model Hibitsuzuri.Web.Diary.SearchPage
+@using Hibitsuzuri.Web.Diary
+@{
+    ViewData["Title"] = "日記を検索";
+    ViewData["Navigation"] = "search";
+    string PageUrl(int page) => $"/search?keyword={Uri.EscapeDataString(Model.Keyword)}&bookId={Model.BookId}&start={Model.Start:yyyy-MM-dd}&end={Model.End:yyyy-MM-dd}&page={page}";
+}
+<header class="page-heading"><p class="eyebrow">SEARCH</p><h1>日記を検索</h1></header>
+<form method="get" class="paper form-stack search-panel">
+    <div class="search-box">
+        <input name="keyword" aria-label="検索キーワード" placeholder="日記の言葉を検索…" value="@Model.Keyword" maxlength="200" required />
+        <button class="primary" type="submit"><partial name="_Icon" model='"search"' />検索</button>
+    </div>
+    <div class="search-filters">
+        <label>開始日 <input type="date" name="start" value="@Model.Start?.ToString("yyyy-MM-dd")" /></label>
+        <label>終了日 <input type="date" name="end" value="@Model.End?.ToString("yyyy-MM-dd")" /></label>
+        <label>日記帳
+            <select name="bookId">
+                <option value="">すべての日記帳</option>
+                @foreach (var book in Model.Books)
+                {
+                    <option value="@book.Id" selected="@(book.Id == Model.BookId)">@book.Name</option>
+                }
+            </select>
+        </label>
+    </div>
+    <p class="muted">日記に表示される本文の部分一致で検索します。英数字の全角・半角、大文字・小文字は区別しません。</p>
+    <p class="muted">タスク名やメモは<a href="/tasks?bookId=@Model.BookId">タスク一覧</a>で検索できます。</p>
+</form>
+@if (Model.Keyword.Length == 0)
+{
+    <p class="muted spacer">例えば「銀杏」「コーヒー」「旅」。短い言葉からも探せます。</p>
+}
+@if (Model.Error is not null)
+{
+    <p class="notice" role="alert">@Model.Error</p>
+}
+else if (Model.Keyword.Length > 0)
+{
+    <p class="muted">日付の新しい順・1ページ50件</p>
+    @if (Model.Entries.Count == 0)
+    {
+        <p class="paper">一致する日記はありません。</p>
+    }
+    @foreach (var entry in Model.Entries)
+    {
+        <article class="paper record-card spacer">
+            <div class="diary-heading record-meta"><a href="/diary/@entry.NotebookId/@entry.EntryDate.ToString("yyyy-MM-dd")">@entry.EntryDate.ToString("yyyy年M月d日")</a><span class="badge">@Model.Books.Single(x => x.Id == entry.NotebookId).Name</span></div>
+            <h2 class="record-title"><a href="/diary/@entry.NotebookId/@entry.EntryDate.ToString("yyyy-MM-dd")">@(entry.PlainText.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "日記")</a></h2>
+            <p class="search-snippet">@Html.Raw(DiarySearch.Snippet(entry.PlainText, Model.Keyword))</p>
+        </article>
+    }
+    <nav class="day-navigation" aria-label="検索結果のページ">
+        @if (Model.Page > 1)
+        {
+            <a href="@PageUrl(Model.Page - 1)">前の50件</a>
+        }
+        @if (Model.HasNext)
+        {
+            <a href="@PageUrl(Model.Page + 1)">次の50件</a>
+        }
+    </nav>
+}

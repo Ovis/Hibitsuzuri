@@ -1,0 +1,57 @@
+@model Hibitsuzuri.Web.Navigation.NavigationPage
+@{
+    var primary = new[]
+    {
+        (Href: "/", Label: "日記", Icon: "book", Section: "home"),
+        (Href: "/calendar", Label: "カレンダー", Icon: "calendar", Section: "calendar"),
+        (Href: "/tasks", Label: "タスク", Icon: "tasks", Section: "tasks"),
+        (Href: "/search", Label: "検索", Icon: "search", Section: "search")
+    };
+    var secondary = new[]
+    {
+        (Href: "/books", Label: "日記帳の管理", Icon: "book", Section: "books"),
+        (Href: Model.Selected is null ? "/books" : $"/diary/{Model.Selected.Id}/trash", Label: "日記のゴミ箱", Icon: "trash", Section: "trash"),
+        (Href: "/data", Label: "データ管理", Icon: "download", Section: "data")
+    };
+    var settings = !primary.Any(x => x.Section == Model.Section);
+}
+
+<aside class="sidebar">
+    <div>
+        <partial name="_Brand" />
+        <p class="brand-sub">日々を、綴る。</p>
+    </div>
+    <div class="book-switch">
+        <span class="book-switch-label">あなたの日記帳</span>
+        <partial name="_BookSwitch" model="Model" />
+    </div>
+    <nav class="navigation" aria-label="メインメニュー">
+        @foreach (var item in primary)
+        {
+            <a href="@item.Href" aria-current="@(Model.Section == item.Section ? "page" : null)"><partial name="_Icon" model="item.Icon" /><span>@item.Label</span></a>
+        }
+    </nav>
+    <div class="sidebar-bottom">
+        <nav class="navigation" aria-label="日記帳とデータ">
+            @foreach (var item in secondary)
+            {
+                <a href="@item.Href" aria-current="@(Model.Section == item.Section ? "page" : null)"><partial name="_Icon" model="item.Icon" /><span>@item.Label</span></a>
+            }
+        </nav>
+        <a class="account-link" href="/settings" aria-current="@(settings && !secondary.Any(x => x.Section == Model.Section) ? "page" : null)">
+            <partial name="_Icon" model='"settings"' /><span>設定 <span class="muted">@User.Identity?.Name</span></span>
+        </a>
+    </div>
+</aside>
+
+<header class="mobile-header">
+    <partial name="_Brand" />
+    <partial name="_BookSwitch" model="Model" />
+</header>
+<nav class="mobile-nav" aria-label="モバイルメニュー">
+    @foreach (var item in primary)
+    {
+        <a href="@item.Href" aria-current="@(Model.Section == item.Section ? "page" : null)"><partial name="_Icon" model="item.Icon" /><span>@item.Label</span></a>
+    }
+    <a href="/settings" aria-current="@(settings ? "page" : null)"><partial name="_Icon" model='"settings"' /><span>設定・その他</span></a>
+</nav>
