@@ -14,11 +14,19 @@ public sealed class DiaryMarkdown
         .DisableHtml().UsePipeTables().UseTaskLists().UsePreciseSourceLocation().Build();
 
     /// <summary>画像URLの位置だけを書き換え、本文・コード・改行を保持する</summary>
-    public string RewriteImages(string text, Func<string, string> destination)
+    public string RewriteImages(string text, Func<string, string> destination) => RewriteImageUrls(text, ImageId, destination);
+
+    /// <summary>書き出しZIPの画像参照だけを管理画像の参照へ戻す</summary>
+    public string ImportImages(string text) => RewriteImageUrls(text,
+        url => url is not null && url.StartsWith("../assets/", StringComparison.Ordinal) ? ImageId("attachment:" + url[10..]) : null,
+        id => "attachment:" + id);
+
+    /// <summary>Markdownの画像URLの範囲だけを置換し、コードや通常リンクを保持する</summary>
+    private string RewriteImageUrls(string text, Func<string?, string?> identify, Func<string, string> destination)
     {
         var replacements = Markdown.Parse(text, _pipeline).Descendants<LinkInline>()
-            .Where(x => x.IsImage && ImageId(x.Url) is not null)
-            .Select(x => (Span: x.Reference?.UrlSpan ?? x.UrlSpan, Url: destination(ImageId(x.Url) ?? "")))
+            .Where(x => x.IsImage && identify(x.Url) is not null)
+            .Select(x => (Span: x.Reference?.UrlSpan ?? x.UrlSpan, Url: destination(identify(x.Url) ?? "")))
             .DistinctBy(x => x.Span.Start).OrderByDescending(x => x.Span.Start);
         var result = new System.Text.StringBuilder(text);
         foreach (var replacement in replacements)

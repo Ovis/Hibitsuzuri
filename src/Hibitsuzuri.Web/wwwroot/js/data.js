@@ -93,7 +93,9 @@
             cancel.hidden = false;
             preview.hidden = false;
             const counts = document.createElement("p");
-            counts.textContent = `日記 ${result.entries}件／履歴 ${result.revisions}版／画像 ${result.images}件／タスク操作 ${result.tasks}件／繰り返し ${result.series}件／記念日 ${result.anniversaries}件`;
+            counts.textContent = markdown
+                ? `ZIP内：日記 ${result.entries}件／画像 ${result.images}件`
+                : `ZIP内：日記 ${result.entries}件／履歴 ${result.revisions}版／画像 ${result.images}件／タスク操作 ${result.tasks}件／繰り返し ${result.series}件／記念日 ${result.anniversaries}件`;
             const names = document.createElement("details");
             const summary = document.createElement("summary");
             summary.textContent = `復元する日記帳：${result.books.length}冊`;
@@ -108,6 +110,11 @@
 
             names.append(summary, list);
             preview.append(counts, names);
+            if (result.markdownChanges) {
+                const changes = document.createElement("p");
+                changes.textContent = `本文の上書き${result.markdownChanges.overwritten}件／新規追加${result.markdownChanges.added}件／削除される編集履歴${result.markdownChanges.removedHistory}版。対象外の日付は維持します。`;
+                preview.append(changes);
+            }
             if (result.missingImages > 0) {
                 const missing = document.createElement("p");
                 missing.textContent = `ZIPに実体のない画像参照が${result.missingImages}件あります。${markdown ? "同じアカウント内に元画像が残っていれば再利用します。" : "本文には参照を残し、画像は復元しません。"}`;

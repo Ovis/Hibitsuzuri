@@ -1133,7 +1133,7 @@ select:disabled {
     overflow-wrap: anywhere;
 }
 
-.account-form input:not([type="checkbox"]) {
+.account-form input:not([type="checkbox"]):not([type="radio"]) {
     width: 100%;
     min-width: 0;
     min-height: 44px;
@@ -1153,6 +1153,24 @@ select:disabled {
 .check-label input {
     width: 20px;
     height: 20px;
+}
+
+#restore-modes {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+#restore-modes .check-label {
+    min-height: 44px;
+}
+
+#restore-modes input {
+    flex: 0 0 20px;
 }
 
 input[type="checkbox"], input[type="radio"] {

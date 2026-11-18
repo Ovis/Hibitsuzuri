@@ -58,7 +58,9 @@ public sealed class BackupMaintenance(IServiceScopeFactory scopes, AuthWriteGate
         // ZIP内の名前は使わず、この機能が作ったGUID形式の直下ファイルだけを対象にする。
         foreach (var path in Directory.EnumerateFiles(backups.DirectoryPath))
         {
-            if (BackupInspection.ValidId(Path.GetFileNameWithoutExtension(path)) && Path.GetExtension(path) is ".zip" or ".input" or ".output"
+            var name = Path.GetFileName(path);
+            var stem = name.EndsWith(".zip.normalized", StringComparison.Ordinal) ? name[..^15] : Path.GetFileNameWithoutExtension(path);
+            if (BackupInspection.ValidId(stem) && (Path.GetExtension(path) is ".zip" or ".input" or ".output" || name.EndsWith(".zip.normalized", StringComparison.Ordinal))
                 && File.GetLastWriteTimeUtc(path) < clock.GetUtcNow().AddDays(-1).UtcDateTime)
             {
                 File.Delete(path);

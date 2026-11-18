@@ -56,6 +56,7 @@ public partial class Program
         builder.Services.AddScoped<BackupService>();
         builder.Services.AddScoped<BackupRestore>();
         builder.Services.AddScoped<RestorePlanning>();
+        builder.Services.AddScoped<MarkdownImport>();
         builder.Services.AddHostedService<BackupMaintenance>();
 
         builder.Services.AddSingleton<PushKeys>();

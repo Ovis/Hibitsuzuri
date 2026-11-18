@@ -12,6 +12,7 @@
 <section class="paper settings-panel">
     <h2>Markdownで書き出す</h2>
     <p>現在の日記本文をZIPにまとめます。履歴・タスク・ゴミ箱は含みません。</p>
+    <p class="muted">本文を編集して取り込めます。ZIP内の構成情報・日記帳フォルダー・日付付きファイル名・本文先頭の日付情報は保持してください。</p>
     <form method="post" action="/data/export" class="account-form">
         @Html.AntiForgeryToken()
         <input type="hidden" name="kind" value="markdown" />
@@ -45,12 +46,13 @@
 </section>
 
 <section class="paper settings-panel spacer" id="restore-panel">
-    <h2>バックアップから復元</h2>
+    <h2>バックアップ・Markdownから取り込む</h2>
     <p>既存の記録を残して追加するか、ゴミ箱を含む記録全体を置き換えるかを選べます。追加時は同名の日記帳に「-2」などを付けます。</p>
     <p>認証情報・個人設定・通知端末は維持します。復元したタスクは停止設定を維持し、復元完了後の通知予定から送信します。</p>
+    <p>Markdownは取り込み先の日記帳を選び、同じ日付の本文・編集履歴を置き換えます。ゴミ箱に同日の記録があれば置き換えて戻します。ZIPに含まれない日付、タスク、テンプレートは変更しません。</p>
     <form id="restore-upload" class="account-form">
         @Html.AntiForgeryToken()
-        <label for="restore-file">個人バックアップZIP（2GB以内）</label>
+        <label for="restore-file">Hibitsuzuriの個人バックアップ・Markdown ZIP（2GB以内）</label>
         <input id="restore-file" type="file" accept=".zip,application/zip" required />
         <button class="button" type="submit">内容を確認する</button>
     </form>
@@ -61,7 +63,7 @@
             <label class="check-label"><input type="radio" name="mode" value="append" checked /> 既存の記録を残して追加する</label>
             <label class="check-label"><input type="radio" name="mode" value="replace" /> 記録全体を置き換える</label>
         </fieldset>
-        <div id="restore-targets" hidden></div>
+        <div id="restore-targets" class="account-form" hidden></div>
         <button class="button" type="submit">復元内容を確認する</button>
     </form>
     <div id="restore-preview" hidden></div>

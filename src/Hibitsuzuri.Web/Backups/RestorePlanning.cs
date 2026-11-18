@@ -21,6 +21,11 @@ public sealed class RestorePlanning(AppDbContext db, IDataProtectionProvider pro
         }
 
         var existing = await db.Notebooks.AsNoTracking().Where(x => x.UserId == owner).OrderBy(x => x.Position).ThenBy(x => x.Id).ToListAsync(token);
+        if (mode == "append" && inspection.Books.Count == 0 && inspection.Anniversaries > 0)
+        {
+            throw new InvalidDataException("このZIPには記念日だけがあり、表示先にする日記帳がありません。追加復元はできません。置き換え復元では元の設定で復元できます。");
+        }
+
         targets ??= inspection.Books.Keys.ToDictionary(x => x, _ => "");
         if (!targets.Keys.ToHashSet().SetEquals(inspection.Books.Keys)
             || targets.Values.Any(x => x is null || (x != "" && (!inspection.IsMarkdown || existing.All(b => b.Id != x))))
@@ -98,13 +103,7 @@ public sealed class RestorePlanning(AppDbContext db, IDataProtectionProvider pro
         for (var number = 2; !used.Add(name); number++)
         {
             var suffix = "-" + number.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var length = Math.Min(original.Length, 100 - suffix.Length);
-            if (length < original.Length && char.IsHighSurrogate(original[length - 1]))
-            {
-                length--;
-            }
-
-            name = original[..length] + suffix;
+            name = string.Concat(original.EnumerateRunes().Take(100 - suffix.Length).Select(x => x.ToString())) + suffix;
         }
 
         return name;

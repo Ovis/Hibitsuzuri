@@ -10,7 +10,7 @@ namespace Hibitsuzuri.Web.Controllers;
 
 /// <summary>本人のデータ出力と、影響範囲を確認してからの復元を提供する</summary>
 public sealed class DataController(AppDbContext db, BackupService backups, BackupRestore restore, SessionService sessions,
-    AuthWriteGate gate, AuthAudit audit, RestorePlanning planning, TimeProvider clock) : Controller
+    AuthWriteGate gate, AuthAudit audit, RestorePlanning planning, MarkdownImport markdownImport, TimeProvider clock) : Controller
 {
     /// <summary>管理者も他人の記録へアクセスしない所有者境界</summary>
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException();
@@ -112,6 +112,7 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
                 await BackupArchive.CopyAsync(Request.Body, output, BackupArchive.CompressedLimit, HttpContext.RequestAborted);
             }
 
+            await markdownImport.NormalizeAsync(path, HttpContext.RequestAborted);
             var inspection = await backups.InspectAsync(id, true, HttpContext.RequestAborted);
             await gate.Semaphore.WaitAsync(HttpContext.RequestAborted);
             try
@@ -220,7 +221,7 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
         {
             return BadRequest(new
             {
-                error = "復元内容を確認できません。ファイルと取り込み先の指定を確認してください。"
+                error = error is InvalidDataException ? error.Message : "復元内容を確認できません。ファイルと取り込み先の指定を確認してください。"
             });
         }
     }
@@ -313,6 +314,19 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
         var existing = await db.Notebooks.AsNoTracking().Where(x => x.UserId == Owner)
             .OrderBy(x => x.Position).ThenBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Archived }).ToListAsync();
         var allBooks = db.Notebooks.IgnoreQueryFilters().Where(x => x.UserId == Owner);
+        var overwritten = 0;
+        var removedHistory = 0;
+        if (plan?.Mode == "markdown")
+        {
+            foreach (var (source, target) in plan.Targets.Where(x => x.Value != ""))
+            {
+                var dates = inspection.Entries.Where(x => x.Value == source).Select(x => inspection.EntryDates[x.Key]).ToArray();
+                var matching = db.DiaryEntries.Where(x => x.NotebookId == target && dates.Contains(x.EntryDate));
+                overwritten += await matching.CountAsync();
+                removedHistory += await db.DiaryRevisions.CountAsync(x => matching.Any(e => e.Id == x.EntryId));
+            }
+        }
+
         return new
         {
             id,
@@ -338,6 +352,12 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
             tasks = inspection.Tasks,
             series = inspection.Series.Count,
             anniversaries = inspection.Anniversaries,
+            markdownChanges = plan?.Mode == "markdown" ? new
+            {
+                overwritten,
+                added = inspection.Entries.Count - overwritten,
+                removedHistory
+            } : null,
             replacing = plan?.Mode == "replace" ? new
             {
                 books = await allBooks.CountAsync(),

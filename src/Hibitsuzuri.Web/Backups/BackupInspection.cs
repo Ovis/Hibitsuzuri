@@ -26,6 +26,9 @@ public sealed class BackupInspection
     /// <summary>履歴と画像参照の所属先</summary>
     public Dictionary<string, string> Entries { get; } = [];
 
+    /// <summary>Markdown上書きの影響件数を確認する元の日付</summary>
+    public Dictionary<string, DateOnly> EntryDates { get; } = [];
+
     /// <summary>新しいIDを割り当てる系列</summary>
     public Dictionary<string, string> Series { get; } = [];
 
@@ -97,6 +100,7 @@ public sealed class BackupInspection
                 && Timestamp(entry.CreatedAt) && Timestamp(entry.UpdatedAt)
                 && dates.Add((entry.NotebookId, entry.EntryDate)) && result.Entries.TryAdd(entry.Id, entry.NotebookId));
             result.ImageReferences.UnionWith(markdown.ImageIds(entry.Content));
+            result.EntryDates.Add(entry.Id, entry.EntryDate);
         }
 
         var revisions = new HashSet<string>();

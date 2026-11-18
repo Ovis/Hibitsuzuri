@@ -2,17 +2,16 @@ using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
-using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hibitsuzuri.Web.Backups;
 
-/// <summary>検証済みデータを新しいIDへ割り当て、一度だけ原子的に反映する</summary>
+/// <summary>検証済みデータを本人の確認した復元先へ一度だけ原子的に反映する</summary>
 public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageStore images, DiaryMarkdown markdown, AuthAudit audit, TimeProvider clock)
 {
-    /// <summary>ファイルを先に用意し、記録・通知停止・確定済み結果を同時にコミットする</summary>
+    /// <summary>ファイルを先に用意し、記録・通知再開境界・確定済み結果を同時にコミットする</summary>
     /// <remarks>所有者の認証状態の再確認とAuthWriteGate取得は呼び出し元で行う</remarks>
     public async Task ApplyAsync(string id, string owner, BackupInspection inspection, RestorePlan plan, HttpContext context, CancellationToken token)
     {
@@ -25,6 +24,26 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
         var committed = false;
         var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
         using var archive = new BackupArchive(backups.PathFor(id));
+
+        if (inspection.IsMarkdown)
+        {
+            foreach (var (source, target) in plan.Targets.Where(x => x.Value != ""))
+            {
+                books[source] = target;
+            }
+
+            if (!inspection.IncludesImages)
+            {
+                // ZIPの所有者情報は信用しない。現在の本人が利用可能な元画像だけに再接続する。
+                foreach (var image in await images.AvailableAsync(owner, inspection.ImageReferences))
+                {
+                    if (File.Exists(images.PathFor(image.Id)))
+                    {
+                        imageIds[image.Id] = image.Id;
+                    }
+                }
+            }
+        }
 
         try
         {
@@ -53,6 +72,11 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 .Select((book, index) => (book.Id, Position: position + index + 1)).ToDictionary(x => x.Id, x => x.Position);
             foreach (var (_, saved) in archive.Read<BackupNotebook>("books"))
             {
+                if (inspection.IsMarkdown && plan.Targets[saved.Id] != "")
+                {
+                    continue;
+                }
+
                 var book = BackupMapping.Restore(saved);
                 book.Position = positions[book.Id];
                 book.Id = books[book.Id];
@@ -72,6 +96,25 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 entry.Content = Rewrite(entry.Content, imageIds);
                 entry.PlainText = markdown.PlainText(entry.Content);
                 entry.SearchText = DiarySearch.Normalize(entry.PlainText);
+                if (inspection.IsMarkdown)
+                {
+                    var current = await db.DiaryEntries.SingleOrDefaultAsync(x => x.NotebookId == entry.NotebookId && x.EntryDate == entry.EntryDate, token);
+                    if (current is not null)
+                    {
+                        // 旧版を別履歴へ退避しない合意。版を変えることで開いている編集タブからの保存は競合にする。
+                        await db.DiaryRevisions.Where(x => x.EntryId == current.Id).ExecuteDeleteAsync(token);
+                        current.Content = entry.Content;
+                        current.PlainText = entry.PlainText;
+                        current.SearchText = entry.SearchText;
+                        current.UpdatedAt = now;
+                        current.DeletedAt = null;
+                        current.Version = Guid.NewGuid().ToString("N");
+                        entries[saved.Id] = current.Id;
+                        await FlushAsync(token);
+                        continue;
+                    }
+                }
+
                 await InsertAsync(entry, token);
             }
 
@@ -171,11 +214,8 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                         AnniversaryId = anniversary.Id,
                         NotebookId = book
                     }).ToList();
-                    if (anniversary.Notebooks.Count == 0)
-                    {
-                        continue;
-                    }
                 }
+
                 foreach (var link in anniversary.Notebooks)
                 {
                     link.AnniversaryId = anniversary.Id;
@@ -186,6 +226,14 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
             }
 
             await FlushAsync(token);
+            if (!inspection.IsMarkdown)
+            {
+                // 画像コピー等で復元に時間がかかっても、処理中に過ぎた通知を後追いしない。
+                var restoredBooks = books.Values.ToArray();
+                var completedAt = clock.GetUtcNow().ToUnixTimeMilliseconds();
+                await db.Notebooks.Where(x => restoredBooks.Contains(x.Id)).ExecuteUpdateAsync(set => set.SetProperty(x => x.NotificationAfter, completedAt), token);
+            }
+
             var transfer = await db.RestoreTransfers.SingleAsync(x => x.Id == id && x.UserId == owner, token);
             transfer.Completed = true;
             audit.Add(context, "backup.restore", owner);
