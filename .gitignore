@@ -435,7 +435,8 @@ FodyWeavers.xsd
 !src/Hibitsuzuri.Web/Backups/
 .env
 .env.*
-!.env.example
+!.env.sample
+!.env.dev.sample
 setup-token.txt
 *.db
 *.db-shm

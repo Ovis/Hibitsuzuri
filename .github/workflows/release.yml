@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta'
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Verify the release tag
+    if: ${{ github.event_name == 'release' || (github.event_name == 'push' && github.event.created) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      revision: ${{ steps.version.outputs.revision }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the version and main ancestry
+        id: version
+        env:
+          PUBLISHED_AS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta)?$ ]]; then
+            echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-beta."
+            exit 1
+          fi
+
+          prerelease=false
+          if [[ "$GITHUB_REF_NAME" == *-beta ]]; then
+            prerelease=true
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == release && "$PUBLISHED_AS_PRERELEASE" != "$prerelease" ]]; then
+            echo "::error::The release type must match the tag. Publish -beta tags as pre-releases."
+            exit 1
+          fi
+
+          revision=$(git rev-parse 'HEAD^{commit}')
+          tagged=$(git rev-parse "${GITHUB_REF}^{commit}")
+          if [[ "$revision" != "$tagged" ]]; then
+            echo "::error::The release tag no longer points to the checked-out commit."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$revision" refs/remotes/origin/main; then
+            echo "::error::The release tag must point to a commit on main."
+            exit 1
+          fi
+
+          printf 'tag=%s\nrevision=%s\nprerelease=%s\n' "$GITHUB_REF_NAME" "$revision" "$prerelease" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Run CI for the release
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
+  draft:
+    name: Create the release draft
+    if: github.event_name == 'push'
+    needs: [validate, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+    steps:
+      - name: Create a draft for the existing tag
+        run: |
+          # 再実行時は、手動で編集したリリースノートや公開状態を保持する。
+          if gh release view "$RELEASE_TAG" --json url --jq .url; then
+            exit 0
+          fi
+
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes \
+            --prerelease="$RELEASE_PRERELEASE"
+
+  publish:
+    name: Publish the container image
+    if: github.event_name == 'release'
+    needs: [validate, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_REVISION: ${{ needs.validate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.revision }}
+          persist-credentials: false
+
+      - name: Build the versioned image
+        id: image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_TAG"
+          docker build --platform linux/amd64 --tag "$image" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$RELEASE_REVISION" \
+            --label "org.opencontainers.image.version=$RELEASE_TAG" .
+          printf 'reference=%s\n' "$image" >> "$GITHUB_OUTPUT"
+
+      - name: Push to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
+          printf '公開イメージ `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"

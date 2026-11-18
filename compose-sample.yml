@@ -1,3 +1,4 @@
+# GHCR配布イメージ用。環境変数の例は .env.sample を参照。
 name: hibitsuzuri
 
 services:
