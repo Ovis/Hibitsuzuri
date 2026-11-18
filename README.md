@@ -82,3 +82,8 @@ Markdownを書き出してから編集する場合は、日記の本文を変更
 ## ライセンス
 
 - [MIT License](LICENSE)
+
+## 開発向け資料
+
+- [開発手順](docs/development.md)
+- [仕様・実装の申し送り](docs/implementation-handoff.md)
