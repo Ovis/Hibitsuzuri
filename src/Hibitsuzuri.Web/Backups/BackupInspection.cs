@@ -8,6 +8,18 @@ namespace Hibitsuzuri.Web.Backups;
 /// <summary>本文を保持せず、復元前に所属関係と値の範囲を検証する</summary>
 public sealed class BackupInspection
 {
+    /// <summary>本文上書きとして扱うMarkdownからの取り込み</summary>
+    public bool IsMarkdown
+    {
+        get; private set;
+    }
+
+    /// <summary>画像実体を同梱する設定で書き出されたZIP</summary>
+    public bool IncludesImages
+    {
+        get; private set;
+    }
+
     /// <summary>表示順と復元時の名前衝突を確認する日記帳</summary>
     public Dictionary<string, BackupNotebook> Books { get; } = [];
 
@@ -62,7 +74,7 @@ public sealed class BackupInspection
     /// <summary>順に読み取り、本文のサイズに比例したメモリを確保しない</summary>
     public static BackupInspection Read(BackupArchive archive, DiaryMarkdown markdown)
     {
-        var result = new BackupInspection();
+        var result = new BackupInspection { IsMarkdown = archive.IsMarkdown, IncludesImages = archive.IncludesImages };
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (_, book) in archive.Read<BackupNotebook>("books"))
         {
@@ -111,6 +123,7 @@ public sealed class BackupInspection
         }
 
         Require(result.Images.Keys.ToHashSet().SetEquals(archive.AssetIds));
+        Require(archive.IncludesImages || result.Images.Count == 0);
         result.ReadTasks(archive);
         result.ReadAnniversaries(archive);
         return result;

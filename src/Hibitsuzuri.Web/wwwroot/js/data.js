@@ -9,11 +9,17 @@
     const refresh = document.querySelector("#restore-refresh");
     const cancel = document.querySelector("#restore-cancel");
     const accepted = document.querySelector("#restore-accepted");
+    const options = document.querySelector("#restore-options");
+    const modes = document.querySelector("#restore-modes");
+    const targets = document.querySelector("#restore-targets");
+    const confirmLabel = document.querySelector("#restore-confirm-label");
     const token = upload.querySelector('[name="__RequestVerificationToken"]').value;
     const key = `hibitsuzuri.restore.${document.documentElement.dataset.owner}`;
     let operation = sessionStorage.getItem(key);
     let busy = false;
     let completed = false;
+    let planToken = null;
+    let markdown = false;
 
     async function request(path, body) {
         const response = await fetch(path, {
@@ -39,6 +45,8 @@
         preview.hidden = true;
         confirm.hidden = true;
         accepted.checked = false;
+        planToken = result.planToken || null;
+        options.hidden = true;
         cancel.hidden = true;
         upload.hidden = false;
 
@@ -52,8 +60,35 @@
             sessionStorage.removeItem(key);
             status.textContent = "確認待ちの復元はありません。";
         } else if (result.state === "completed") {
-            status.textContent = "復元が完了しました。日記帳から記録を確認できます。通知は全端末で停止しています。";
+            status.textContent = "復元が完了しました。日記帳から記録を確認できます。通知端末の設定は維持されています。";
         } else if (result.state === "ready") {
+            markdown = result.markdown;
+            options.hidden = false;
+            modes.hidden = markdown;
+            targets.hidden = !markdown;
+            targets.replaceChildren();
+            if (result.mode && !markdown) {
+                options.elements.mode.value = result.mode;
+            }
+
+            if (markdown) {
+                for (const book of result.books) {
+                    const label = document.createElement("label");
+                    const select = document.createElement("select");
+                    select.id = `restore-target-${book.id}`;
+                    select.name = book.id;
+                    label.htmlFor = select.id;
+                    label.textContent = `「${book.name}」の取り込み先`;
+                    select.add(new Option("新しい日記帳を作る", ""));
+                    for (const existing of result.existing) {
+                        select.add(new Option(`${existing.name}${existing.archived ? "（アーカイブ）" : ""}`, existing.id));
+                    }
+
+                    select.value = book.target || "";
+                    targets.append(label, select);
+                }
+            }
+
             upload.hidden = true;
             cancel.hidden = false;
             preview.hidden = false;
@@ -65,7 +100,9 @@
             const list = document.createElement("ul");
             for (const book of result.books) {
                 const row = document.createElement("li");
-                row.textContent = `${book.name}（${book.archived ? "アーカイブ" : "使用中"}・タスク${book.paused ? "停止" : "継続"}）`;
+                row.textContent = book.destination
+                    ? `${book.name} → ${book.destination}${book.target ? "（同日の本文・履歴を置き換え）" : "（新規作成）"}`
+                    : `${book.name}（${book.archived ? "アーカイブ" : "使用中"}・タスク${book.paused ? "停止" : "継続"}）`;
                 list.append(row);
             }
 
@@ -73,12 +110,24 @@
             preview.append(counts, names);
             if (result.missingImages > 0) {
                 const missing = document.createElement("p");
-                missing.textContent = `元のデータにも実体がない画像参照が${result.missingImages}件あります。本文には参照を残し、画像は復元しません。`;
+                missing.textContent = `ZIPに実体のない画像参照が${result.missingImages}件あります。${markdown ? "同じアカウント内に元画像が残っていれば再利用します。" : "本文には参照を残し、画像は復元しません。"}`;
                 preview.append(missing);
             }
 
-            status.textContent = result.problem || "内容を確認しました。復元する前に対象を確認してください。";
-            confirm.hidden = Boolean(result.problem);
+            confirmLabel.textContent = markdown
+                ? "選択した日記帳の同日の本文・編集履歴を置き換える（元の履歴には戻せません）"
+                : result.mode === "replace"
+                    ? "ゴミ箱を含む現在の記録・画像を削除し、このバックアップに置き換える（元に戻せません）"
+                    : "既存の記録を残し、表示された日記帳を追加する";
+            if (result.replacing) {
+                const warning = document.createElement("p");
+                warning.className = "validation-summary-errors";
+                warning.textContent = `現在の日記帳${result.replacing.books}冊・日記${result.replacing.entries}件・画像${result.replacing.images}件と、履歴・テンプレート・タスク・記念日を、ゴミ箱も含めて削除して置き換えます。${result.includesImages ? "" : "画像なしのバックアップのため、現在の画像も失われます。"}`;
+                preview.append(warning);
+            }
+
+            status.textContent = planToken ? "変更内容を確認し、下の確認欄にチェックして復元してください。" : "復元方法・取り込み先を選び、復元内容を確認してください。";
+            confirm.hidden = !planToken;
         } else {
             cancel.hidden = false;
             upload.hidden = result.state === "expired";
@@ -96,6 +145,7 @@
         busy = true;
         const buttons = document.querySelectorAll("#restore-panel button");
         buttons.forEach(button => { button.disabled = true; });
+        options.querySelectorAll("input, select").forEach(control => { control.disabled = true; });
         try {
             await action();
         } catch (error) {
@@ -103,6 +153,7 @@
         } finally {
             busy = false;
             buttons.forEach(button => { button.disabled = false; });
+            options.querySelectorAll("input, select").forEach(control => { control.disabled = false; });
         }
     }
 
@@ -131,13 +182,29 @@
 
     confirm.addEventListener("submit", event => {
         event.preventDefault();
-        if (!operation || !accepted.checked) {
+        if (!operation || !accepted.checked || !planToken) {
             return;
         }
 
         run(async () => {
             status.textContent = "復元しています。通信が切れても、状態の確認で結果を確認できます。";
-            show(await request(`/api/data/restore/${operation}/confirm`, new URLSearchParams({ confirmed: "true" })));
+            show(await request(`/api/data/restore/${operation}/confirm`, new URLSearchParams({ confirmed: "true", planToken })));
+        });
+    });
+
+    options.addEventListener("change", () => {
+        planToken = null;
+        confirm.hidden = true;
+        accepted.checked = false;
+        status.textContent = "選択を変更しました。復元内容をもう一度確認してください。";
+    });
+
+    options.addEventListener("submit", event => {
+        event.preventDefault();
+        const selected = Object.fromEntries([...targets.querySelectorAll("select")].map(select => [select.name, select.value]));
+        const mode = markdown ? "markdown" : options.elements.mode.value;
+        run(async () => {
+            show(await request(`/api/data/restore/${operation}/preview`, new URLSearchParams({ mode, targets: markdown ? JSON.stringify(selected) : "null" })));
         });
     });
 

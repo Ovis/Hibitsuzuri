@@ -14,7 +14,7 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
 {
     /// <summary>ファイルを先に用意し、記録・通知停止・確定済み結果を同時にコミットする</summary>
     /// <remarks>所有者の認証状態の再確認とAuthWriteGate取得は呼び出し元で行う</remarks>
-    public async Task ApplyAsync(string id, string owner, BackupInspection inspection, HttpContext context, CancellationToken token)
+    public async Task ApplyAsync(string id, string owner, BackupInspection inspection, RestorePlan plan, HttpContext context, CancellationToken token)
     {
         var books = Map(inspection.Books.Keys);
         var entries = Map(inspection.Entries.Keys);
@@ -37,6 +37,17 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
 
             // DBが失敗しても既存ファイルには触れない。中断時の新規孤立ファイルは定期回収できる。
             await using var transaction = await db.Database.BeginTransactionAsync(token);
+            if (plan.Mode == "replace")
+            {
+                // 実体ファイルはコミット前に削除しない。失敗時は元のDB参照と画像が両方残る。
+                // 確定後の孤立ファイルは既存の画像定期回収に委ね、削除失敗を復元失敗と混同しない。
+                await db.Anniversaries.Where(x => x.UserId == owner).ExecuteDeleteAsync(token);
+                await db.Notebooks.IgnoreQueryFilters().Where(x => x.UserId == owner).ExecuteDeleteAsync(token);
+                await db.DiaryImages.Where(x => x.UserId == owner).ExecuteDeleteAsync(token);
+                await db.TaskMutations.Where(x => x.UserId == owner).ExecuteDeleteAsync(token);
+                await db.PushDeliveries.Where(x => db.PushDevices.Any(d => d.Id == x.DeviceId && d.UserId == owner)).ExecuteDeleteAsync(token);
+            }
+
             var position = await db.Notebooks.Where(x => x.UserId == owner).Select(x => (int?)x.Position).MaxAsync(token) ?? -1;
             var positions = inspection.Books.Values.OrderBy(x => x.Position).ThenBy(x => x.Id)
                 .Select((book, index) => (book.Id, Position: position + index + 1)).ToDictionary(x => x.Id, x => x.Position);
@@ -45,6 +56,7 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 var book = BackupMapping.Restore(saved);
                 book.Position = positions[book.Id];
                 book.Id = books[book.Id];
+                book.Name = plan.Names[saved.Id];
                 book.UserId = owner;
                 book.Template = Rewrite(book.Template, imageIds);
                 book.NotificationAfter = now;
@@ -151,6 +163,19 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 var anniversary = BackupMapping.Restore(saved);
                 anniversary.Id = NewId();
                 anniversary.UserId = owner;
+                if (plan.Mode == "append" && anniversary.AllNotebooks)
+                {
+                    anniversary.AllNotebooks = false;
+                    anniversary.Notebooks = inspection.Books.Keys.Select(book => new AnniversaryNotebook
+                    {
+                        AnniversaryId = anniversary.Id,
+                        NotebookId = book
+                    }).ToList();
+                    if (anniversary.Notebooks.Count == 0)
+                    {
+                        continue;
+                    }
+                }
                 foreach (var link in anniversary.Notebooks)
                 {
                     link.AnniversaryId = anniversary.Id;
@@ -161,7 +186,6 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
             }
 
             await FlushAsync(token);
-            await PushSubscriptions.DisableAsync(db.PushDevices.Where(x => x.UserId == owner));
             var transfer = await db.RestoreTransfers.SingleAsync(x => x.Id == id && x.UserId == owner, token);
             transfer.Completed = true;
             audit.Add(context, "backup.restore", owner);

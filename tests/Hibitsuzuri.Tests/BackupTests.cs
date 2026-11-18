@@ -19,6 +19,81 @@ namespace Hibitsuzuri.Tests;
 /// <summary>実SQLite・実画像・HTTPで個人バックアップの移行と失敗境界を検証する</summary>
 public sealed class BackupTests
 {
+    /// <summary>置き換えはゴミ箱も削除するが認証・他人の記録を維持し、DB失敗時は元に戻す</summary>
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task ReplacementIsAtomicAndKeepsIdentity(bool includeImages)
+    {
+        await using var app = NotificationTests.Application(new RecordingPush());
+        using var client = app.CreateBrowser();
+        using var other = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        await AuthClient.RegisterAsync(app, other, "other", false);
+        var original = await SeedAsync(app, client);
+        var foreignBook = await DiaryClient.CreateBookAsync(other, "他人の日記帳");
+        await NotificationTests.EnableAsync(client);
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, await ExportAsync(client, includeImages: includeImages));
+        Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Notebooks.Where(x => x.Id == original).Select(x => x.UserId).SingleAsync();
+        var identity = await db.Users.AsNoTracking().SingleAsync(x => x.Id == owner);
+        var files = Directory.GetFiles(Path.Combine(app.DataPath, "images"));
+        await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER fail_restore BEFORE UPDATE OF Completed ON RestoreTransfers WHEN NEW.Completed = 1 BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+
+        using var failed = await ConfirmAsync(client, id, "replace");
+        Assert.That(failed.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
+        Assert.That(await db.Notebooks.IgnoreQueryFilters().CountAsync(x => x.UserId == owner), Is.EqualTo(2));
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "ゴミ箱本文"), Is.True);
+        Assert.That(Directory.GetFiles(Path.Combine(app.DataPath, "images")), Is.EquivalentTo(files));
+
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER fail_restore");
+        using var success = await ConfirmAsync(client, id, "replace");
+        Assert.That(success.StatusCode, Is.EqualTo(HttpStatusCode.OK), await success.Content.ReadAsStringAsync());
+        var restored = await db.Notebooks.SingleAsync(x => x.UserId == owner);
+        Assert.That(restored.Id, Is.Not.EqualTo(original));
+        Assert.That(await db.Notebooks.IgnoreQueryFilters().AnyAsync(x => x.UserId == owner && x.DeletedAt != null), Is.False);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "ゴミ箱本文"), Is.False);
+        Assert.That(await db.Notebooks.AnyAsync(x => x.Id == foreignBook), Is.True);
+        Assert.That((await db.Users.AsNoTracking().SingleAsync(x => x.Id == owner)).PasswordHash, Is.EqualTo(identity.PasswordHash));
+        Assert.That(await db.PushDevices.AnyAsync(x => x.UserId == owner && x.Enabled), Is.True);
+        Assert.That(await db.DiaryImages.CountAsync(x => x.UserId == owner), Is.EqualTo(includeImages ? 1 : 0));
+        var content = await db.DiaryEntries.Where(x => x.NotebookId == restored.Id).Select(x => x.Content).SingleAsync();
+        Assert.That(content, Does.Contain("attachment:"));
+        if (!includeImages)
+        {
+            Assert.That(await scope.ServiceProvider.GetRequiredService<ImageStore>().RenderAsync(owner, content), Does.Contain("バックアップに未収録"));
+        }
+    }
+
+    /// <summary>追加復元の全日記帳指定を復元した日記帳に限定し、既存の記念日を変更しない</summary>
+    [Test]
+    public async Task AppendScopesGlobalAnniversariesToRestoredBooks()
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await DiaryClient.CreateBookAsync(client, "日記");
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.Notebooks.Where(x => x.Id == book).Select(x => x.UserId).SingleAsync();
+        var anniversary = new Anniversary { UserId = owner, Title = "全体の記念日", Month = 1, Day = 1 };
+        db.Anniversaries.Add(anniversary);
+        await db.SaveChangesAsync();
+
+        var id = await StartAsync(client);
+        using var upload = await UploadAsync(client, id, await ExportAsync(client));
+        using var result = await ConfirmAsync(client, id);
+        Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.OK), await result.Content.ReadAsStringAsync());
+        var addedBook = await db.Notebooks.SingleAsync(x => x.Name == "日記-2");
+        var added = await db.Anniversaries.Include(x => x.Notebooks).SingleAsync(x => x.Id != anniversary.Id);
+        Assert.That(added.AllNotebooks, Is.False);
+        Assert.That(added.Notebooks.Select(x => x.NotebookId), Is.EqualTo(new[] { addedBook.Id }));
+        Assert.That((await db.Anniversaries.AsNoTracking().SingleAsync(x => x.Id == anniversary.Id)).AllNotebooks, Is.True);
+    }
+
     /// <summary>完全削除済み画像の参照を含む本文も移せるが、画像実体はバックアップから復活しない</summary>
     [Test]
     public async Task DeletedImageReferencesRoundTripWithoutRestoringImage()
@@ -69,7 +144,7 @@ public sealed class BackupTests
 
     /// <summary>履歴・画像・タスク・記念日を移し、認証とゴミ箱を除外し、再送で重複しない</summary>
     [Test]
-    public async Task RoundTripRemapsOwnershipAndDisablesAllDevices()
+    public async Task RoundTripRemapsOwnershipAndPreservesNotificationDevices()
     {
         await using var app = NotificationTests.Application(new RecordingPush());
         using var source = app.CreateBrowser();
@@ -144,7 +219,7 @@ public sealed class BackupTests
         Assert.That(await db.DiaryRevisions.CountAsync(x => x.EntryId == entry.Id), Is.EqualTo(1));
         Assert.That(await db.DiaryImageReferences.AnyAsync(x => x.EntryId == entry.Id && x.ImageId == image.Id), Is.True);
         Assert.That(await db.TaskSlots.CountAsync(x => x.SegmentId == segment.Id && x.Frozen), Is.EqualTo(3));
-        Assert.That(await db.PushDevices.AnyAsync(x => x.UserId == owner && x.Enabled), Is.False);
+        Assert.That(await db.PushDevices.AnyAsync(x => x.UserId == owner && x.Enabled), Is.True);
         Assert.That(await db.RestoreTransfers.CountAsync(x => x.UserId == owner && x.Completed), Is.EqualTo(1));
         Assert.That(await db.SecurityAuditLogs.CountAsync(x => x.SubjectId == owner && x.Event == "backup.restore"), Is.EqualTo(1));
 
@@ -187,7 +262,7 @@ public sealed class BackupTests
         Assert.That(retry.StatusCode, Is.EqualTo(HttpStatusCode.OK), await retry.Content.ReadAsStringAsync());
     }
 
-    /// <summary>確認後の追加記録も再検査し、名前衝突や他人の復元操作を受け入れない</summary>
+    /// <summary>確認後の記録変更を拒否し、再確認後は同名を避けて追加できる</summary>
     [Test]
     public async Task RechecksTargetAndRejectsForeignOperation()
     {
@@ -203,8 +278,7 @@ public sealed class BackupTests
         using var upload = await UploadAsync(target, id, await ExportAsync(source));
         Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(await upload.Content.ReadAsStringAsync(), Does.Contain("同名"));
-        using var conflict = await ConfirmAsync(target, id);
-        Assert.That(conflict.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        var plan = await PrepareAsync(target, id);
         using var foreign = await ConfirmAsync(source, id);
         Assert.That(foreign.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         Assert.That(await source.GetStringAsync("/api/data/restore/status?id=" + id), Does.Contain("none"));
@@ -213,9 +287,15 @@ public sealed class BackupTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Notebooks.Where(x => x.Id == book).ExecuteUpdateAsync(set => set.SetProperty(x => x.Name, "変更済み"));
         await DiaryClient.SaveVersionAsync(target, book, "確認後に作成した記録");
-        using var occupied = await ConfirmAsync(target, id);
+        using var occupied = await ConfirmAsync(target, id, planToken: plan);
         Assert.That(occupied.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
         Assert.That(await db.Notebooks.CountAsync(), Is.EqualTo(2));
+
+        await db.Notebooks.Where(x => x.Id == book).ExecuteUpdateAsync(set => set.SetProperty(x => x.Name, "同名"));
+        using var appended = await ConfirmAsync(target, id);
+        Assert.That(appended.StatusCode, Is.EqualTo(HttpStatusCode.OK), await appended.Content.ReadAsStringAsync());
+        Assert.That(await db.Notebooks.AnyAsync(x => x.Name == "同名-2"), Is.True);
+        Assert.That(await db.DiaryEntries.AnyAsync(x => x.Content == "確認後に作成した記録"), Is.True);
     }
 
     /// <summary>Markdown出力には現行本文だけを含め、画像参照を書き換えコード例は変えない</summary>
@@ -535,7 +615,33 @@ public sealed class BackupTests
     }
 
     /// <summary>確認済みの復元を実行する</summary>
-    private static Task<HttpResponseMessage> ConfirmAsync(HttpClient client, string id) => AuthClient.PostAsync(client, $"/api/data/restore/{id}/confirm", new() { ["confirmed"] = "true" });
+    private static async Task<HttpResponseMessage> ConfirmAsync(HttpClient client, string id, string mode = "append", string? planToken = null,
+        Dictionary<string, string>? targets = null)
+    {
+        planToken ??= await PrepareAsync(client, id, mode, targets);
+        return await AuthClient.PostAsync(client, $"/api/data/restore/{id}/confirm", new()
+        {
+            ["confirmed"] = "true",
+            ["planToken"] = planToken
+        });
+    }
+
+    /// <summary>画面と同じ確認処理で、方式と取り込み先に結び付いた確認票を取得する</summary>
+    private static async Task<string> PrepareAsync(HttpClient client, string id, string mode = "append", Dictionary<string, string>? targets = null)
+    {
+        using var response = await AuthClient.PostAsync(client, $"/api/data/restore/{id}/preview", new()
+        {
+            ["mode"] = mode,
+            ["targets"] = JsonSerializer.Serialize(targets)
+        });
+        if (!response.IsSuccessStatusCode)
+        {
+            return "";
+        }
+
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("planToken").GetString() ?? throw new InvalidDataException();
+    }
 
     /// <summary>試験用の小さなZIP項目をUTF-8で読む</summary>
     private static string ReadText(ZipArchiveEntry entry)

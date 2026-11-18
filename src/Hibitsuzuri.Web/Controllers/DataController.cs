@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hibitsuzuri.Web.Controllers;
 
-/// <summary>本人のデータ出力と、内容確認後の空アカウントへの復元を提供する</summary>
+/// <summary>本人のデータ出力と、影響範囲を確認してからの復元を提供する</summary>
 public sealed class DataController(AppDbContext db, BackupService backups, BackupRestore restore, SessionService sessions,
-    AuthWriteGate gate, AuthAudit audit, TimeProvider clock) : Controller
+    AuthWriteGate gate, AuthAudit audit, RestorePlanning planning, TimeProvider clock) : Controller
 {
     /// <summary>管理者も他人の記録へアクセスしない所有者境界</summary>
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException();
@@ -196,10 +196,39 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
         }
     }
 
-    /// <summary>反映直前に空アカウント・名前・ファイルを再確認し、一度だけ保存する</summary>
+    /// <summary>選択された方式と取り込み先を、現在の記録に対して確認する</summary>
+    [HttpPost("/api/data/restore/{id}/preview")]
+    [ServiceFilter(typeof(AuthOperationFilter))]
+    public async Task<IActionResult> Preview(string id, string mode, string? targets)
+    {
+        if (await PendingAsync(id) is not { Ready: true, Completed: false } transfer)
+        {
+            return BadRequest(new
+            {
+                error = "確認期限が過ぎています。もう一度アップロードしてください。"
+            });
+        }
+
+        try
+        {
+            var inspection = await backups.InspectAsync(id, false, HttpContext.RequestAborted);
+            var selected = targets is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(targets, BackupArchive.Json);
+            var plan = await planning.CreateAsync(Owner, transfer, inspection, mode, selected, HttpContext.RequestAborted);
+            return Ok(await PreviewAsync(id, inspection, plan));
+        }
+        catch (Exception error) when (error is InvalidDataException or JsonException or FileNotFoundException)
+        {
+            return BadRequest(new
+            {
+                error = "復元内容を確認できません。ファイルと取り込み先の指定を確認してください。"
+            });
+        }
+    }
+
+    /// <summary>確認内容と現在の記録を照合し、一度だけ原子的に保存する</summary>
     [HttpPost("/api/data/restore/{id}/confirm")]
     [ServiceFilter(typeof(AuthOperationFilter))]
-    public async Task<IActionResult> Confirm(string id, bool confirmed)
+    public async Task<IActionResult> Confirm(string id, bool confirmed, string? planToken)
     {
         var completed = await db.RestoreTransfers.AnyAsync(x => x.Id == id && x.UserId == Owner && x.Completed);
         if (completed)
@@ -221,16 +250,16 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
         try
         {
             var inspection = await backups.InspectAsync(id, false, HttpContext.RequestAborted);
-            var problem = await backups.TargetProblemAsync(Owner, inspection);
-            if (problem is not null)
+            var plan = planning.Read(planToken, Owner, id);
+            if (plan.Snapshot != await planning.SnapshotAsync(Owner, HttpContext.RequestAborted))
             {
                 return Conflict(new
                 {
-                    error = problem
+                    error = "確認後に記録が変更されています。復元内容をもう一度確認してください。"
                 });
             }
 
-            await restore.ApplyAsync(id, Owner, inspection, HttpContext, HttpContext.RequestAborted);
+            await restore.ApplyAsync(id, Owner, inspection, plan, HttpContext, HttpContext.RequestAborted);
             return Ok(new
             {
                 state = "completed"
@@ -278,19 +307,44 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
         return db.RestoreTransfers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == Owner && x.ExpiresAt > now);
     }
 
-    /// <summary>本文を返さず、対象名と件数・復元可否を確認できるようにする</summary>
-    private async Task<object> PreviewAsync(string id, BackupInspection inspection) => new
+    /// <summary>本文を返さず、復元先と上書き・削除の影響を示す</summary>
+    private async Task<object> PreviewAsync(string id, BackupInspection inspection, RestorePlan? plan = null)
     {
-        id,
-        state = "ready",
-        books = inspection.Books.Values.OrderBy(x => x.Position).Select(x => new { name = x.Name, archived = x.Archived, paused = x.TasksPausedOn is not null }),
-        entries = inspection.Entries.Count,
-        revisions = inspection.Revisions,
-        images = inspection.Images.Count,
-        missingImages = inspection.ImageReferences.Except(inspection.Images.Keys).Count(),
-        tasks = inspection.Tasks,
-        series = inspection.Series.Count,
-        anniversaries = inspection.Anniversaries,
-        problem = await backups.TargetProblemAsync(Owner, inspection)
-    };
+        var existing = await db.Notebooks.AsNoTracking().Where(x => x.UserId == Owner)
+            .OrderBy(x => x.Position).ThenBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Archived }).ToListAsync();
+        var allBooks = db.Notebooks.IgnoreQueryFilters().Where(x => x.UserId == Owner);
+        return new
+        {
+            id,
+            state = "ready",
+            markdown = inspection.IsMarkdown,
+            includesImages = inspection.IncludesImages,
+            mode = plan?.Mode,
+            planToken = plan is null ? null : planning.Protect(plan),
+            books = inspection.Books.Values.OrderBy(x => x.Position).ThenBy(x => x.Id).Select(x => new
+            {
+                x.Id,
+                x.Name,
+                x.Archived,
+                paused = x.TasksPausedOn is not null,
+                target = plan?.Targets[x.Id],
+                destination = plan?.Names[x.Id]
+            }),
+            existing,
+            entries = inspection.Entries.Count,
+            revisions = inspection.Revisions,
+            images = inspection.Images.Count,
+            missingImages = inspection.ImageReferences.Except(inspection.Images.Keys).Count(),
+            tasks = inspection.Tasks,
+            series = inspection.Series.Count,
+            anniversaries = inspection.Anniversaries,
+            replacing = plan?.Mode == "replace" ? new
+            {
+                books = await allBooks.CountAsync(),
+                entries = await db.DiaryEntries.CountAsync(x => allBooks.Any(b => b.Id == x.NotebookId)),
+                images = await db.DiaryImages.CountAsync(x => x.UserId == Owner)
+            } : null,
+            problem = (string?)null
+        };
+    }
 }

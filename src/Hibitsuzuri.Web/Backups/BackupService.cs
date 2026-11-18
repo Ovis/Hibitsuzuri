@@ -257,27 +257,4 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
         return inspection;
     }
 
-    /// <summary>空の日記帳は残せるが、ゴミ箱や下書き画像も含め記録がある場合は復元しない</summary>
-    public async Task<string?> TargetProblemAsync(string owner, BackupInspection inspection)
-    {
-        var books = db.Notebooks.IgnoreQueryFilters().Where(x => x.UserId == owner);
-        if (await books.AnyAsync(x => x.DeletedAt != null || x.Template != "")
-            || await db.DiaryEntries.AnyAsync(x => books.Any(b => b.Id == x.NotebookId))
-            || await db.DiaryImages.AnyAsync(x => x.UserId == owner)
-            || await db.TaskSeries.AnyAsync(x => books.Any(b => b.Id == x.NotebookId))
-            || await db.TaskRecords.AnyAsync(x => books.Any(b => b.Id == x.NotebookId))
-            || await db.TaskPauses.AnyAsync(x => books.Any(b => b.Id == x.NotebookId))
-            || await db.Anniversaries.AnyAsync(x => x.UserId == owner))
-        {
-            return "復元先に記録があります。ゴミ箱・画像・タスク・記念日・テンプレートも空のアカウントで復元してください。既存の記録は削除しません。";
-        }
-
-        var names = inspection.Books.Values.Select(x => x.Name).ToArray();
-        if (await books.AnyAsync(x => names.Contains(x.Name)))
-        {
-            return "復元元と同名の日記帳があります。復元先の空の日記帳を別の名前に変更してから、再度確認してください。";
-        }
-
-        return null;
-    }
 }

@@ -6,7 +6,7 @@
 
 <header class="page-header">
     <h1>データ管理</h1>
-    <p class="muted">記録を手元に保存する、別の空アカウントへ移す。</p>
+    <p class="muted">記録を手元に保存する、保存した記録を取り込む。</p>
 </header>
 
 <section class="paper settings-panel">
@@ -46,8 +46,8 @@
 
 <section class="paper settings-panel spacer" id="restore-panel">
     <h2>バックアップから復元</h2>
-    <p>記録のないアカウントに復元できます。既存の空の日記帳は残します。同名の日記帳がある場合は、先に名前を変更してください。</p>
-    <p>復元後はすべての端末の通知を停止します。必要な端末で<a href="/settings#notifications-title">設定 → 通知</a>から有効にしてください。</p>
+    <p>既存の記録を残して追加するか、ゴミ箱を含む記録全体を置き換えるかを選べます。追加時は同名の日記帳に「-2」などを付けます。</p>
+    <p>認証情報・個人設定・通知端末は維持します。復元したタスクは停止設定を維持し、復元完了後の通知予定から送信します。</p>
     <form id="restore-upload" class="account-form">
         @Html.AntiForgeryToken()
         <label for="restore-file">個人バックアップZIP（2GB以内）</label>
@@ -55,9 +55,18 @@
         <button class="button" type="submit">内容を確認する</button>
     </form>
     <p id="restore-status" role="status" aria-live="polite"></p>
+    <form id="restore-options" class="account-form" hidden aria-label="復元方法の選択">
+        <fieldset id="restore-modes">
+            <legend>復元方法</legend>
+            <label class="check-label"><input type="radio" name="mode" value="append" checked /> 既存の記録を残して追加する</label>
+            <label class="check-label"><input type="radio" name="mode" value="replace" /> 記録全体を置き換える</label>
+        </fieldset>
+        <div id="restore-targets" hidden></div>
+        <button class="button" type="submit">復元内容を確認する</button>
+    </form>
     <div id="restore-preview" hidden></div>
     <form id="restore-confirm" class="account-form" hidden>
-        <label class="check-label"><input id="restore-accepted" type="checkbox" required /> この内容を復元し、すべての端末の通知を停止する</label>
+        <label class="check-label"><input id="restore-accepted" name="confirmed" type="checkbox" required /> <span id="restore-confirm-label">表示された内容で復元する</span></label>
         <button class="button primary" type="submit">復元する</button>
     </form>
     <div class="actions">
