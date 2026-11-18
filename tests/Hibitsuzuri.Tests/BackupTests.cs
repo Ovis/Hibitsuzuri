@@ -237,8 +237,34 @@ public sealed class BackupTests
             Assert.That(content, Does.Not.Contain("過去版の本文"));
             Assert.That(content, Does.Contain("`![例](attachment:00000000000000000000000000000001)`"));
             Assert.That(zip.GetEntry("manifest.json"), Is.Null);
-            Assert.That(zip.Entries.Count, Is.EqualTo(2));
+            Assert.That(zip.GetEntry("markdown.json"), Is.Not.Null);
+            Assert.That(zip.Entries.Count, Is.EqualTo(3));
         });
+    }
+
+    /// <summary>画像なしでも本文・履歴・テンプレートを保持し、画像実体を出力しない</summary>
+    [TestCase("backup")]
+    [TestCase("markdown")]
+    public async Task ExportWithoutImagesPreservesReferences(string kind)
+    {
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        await SeedAsync(app, client);
+
+        var bytes = await ExportAsync(client, kind, includeImages: false);
+        using var zip = new ZipArchive(new MemoryStream(bytes));
+        Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)
+            || x.FullName.StartsWith("images/", StringComparison.Ordinal)), Is.False);
+        var metadata = zip.GetEntry(kind == "backup" ? "manifest.json" : "markdown.json") ?? throw new InvalidDataException();
+        using var manifest = JsonDocument.Parse(ReadText(metadata));
+        Assert.That(manifest.RootElement.GetProperty("IncludesImages").GetBoolean(), Is.False);
+        var text = string.Join("\n", zip.Entries.Select(ReadText));
+        Assert.That(text, Does.Contain(kind == "backup" ? "attachment:" : "../assets/"));
+        if (kind == "backup")
+        {
+            Assert.That(zip.Entries.Count(x => x.FullName.StartsWith("revisions/", StringComparison.Ordinal)), Is.EqualTo(1));
+        }
     }
 
     /// <summary>リンク形式だけを変換し、コード・通常リンク・角括弧付きURLを正しく区別する</summary>
@@ -479,12 +505,13 @@ public sealed class BackupTests
     }
 
     /// <summary>HTTPの添付ファイル応答を取得する</summary>
-    private static async Task<byte[]> ExportAsync(HttpClient client, string kind = "backup", string book = "")
+    private static async Task<byte[]> ExportAsync(HttpClient client, string kind = "backup", string book = "", bool includeImages = true)
     {
         using var response = await AuthClient.PostAsync(client, "/data/export", new()
         {
             ["kind"] = kind,
-            ["bookId"] = book
+            ["bookId"] = book,
+            ["includeImages"] = includeImages.ToString()
         });
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
         return await response.Content.ReadAsByteArrayAsync();

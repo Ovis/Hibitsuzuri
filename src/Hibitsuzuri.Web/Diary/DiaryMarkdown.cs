@@ -75,7 +75,7 @@ public sealed class DiaryMarkdown
                 }
                 else
                 {
-                    renderer.Write("<span class=\"missing-image\">画像が見つかりません（期限切れまたは削除済み）。再選択してください。</span>");
+                    renderer.Write("<span class=\"missing-image\">画像が見つかりません（バックアップに未収録、期限切れ、または削除済み）。必要な画像を再選択してください。</span>");
                     renderer.WriteChildren(link);
                 }
 

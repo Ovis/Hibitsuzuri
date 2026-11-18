@@ -31,7 +31,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
     }
 
     /// <summary>書き込みゲート内で、本文と添付の同じ時点のスナップショットを作る</summary>
-    public async Task<string> ExportAsync(string owner, bool backup, string? bookId, CancellationToken cancellationToken)
+    public async Task<string> ExportAsync(string owner, bool backup, string? bookId, CancellationToken cancellationToken, bool includeImages = true)
     {
         var path = PathFor(Guid.NewGuid().ToString("N"));
         try
@@ -53,6 +53,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
             {
                 // 画像の元の日記帳が削除済みでも、含める本文からの参照があれば保持する。
                 var needed = new Dictionary<string, string>(StringComparer.Ordinal);
+                var exportedImages = new List<BackupImage>();
                 foreach (var book in books)
                 {
                     if (backup)
@@ -99,7 +100,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
                 }
 
                 // 登録されていない過去の参照は本文に残す。ほかの利用者の画像は決して出力しない。
-                foreach (var id in needed.Keys)
+                foreach (var id in includeImages ? needed.Keys : Enumerable.Empty<string>())
                 {
                     var image = await db.DiaryImages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == owner, cancellationToken);
                     if (image is null)
@@ -116,6 +117,10 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
 
                         await archive.AddRecordAsync("images", BackupMapping.Export(image), cancellationToken);
                     }
+                    else
+                    {
+                        exportedImages.Add(BackupMapping.Export(image));
+                    }
 
                     await using var input = File.OpenRead(images.PathFor(id));
                     await archive.AddAsync("assets/" + id, input, cancellationToken);
@@ -124,7 +129,20 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
 
                 if (backup)
                 {
-                    await archive.FinishAsync(clock, cancellationToken);
+                    await archive.FinishAsync(clock, cancellationToken, includeImages);
+                }
+                else
+                {
+                    var package = new MarkdownPackage("hibitsuzuri-markdown", 1, includeImages,
+                        books.Select(x => new MarkdownBook(x.Id, x.Name, FolderName(x))).ToArray(), exportedImages);
+                    var bytes = JsonSerializer.SerializeToUtf8Bytes(package, BackupArchive.Json);
+                    if (bytes.Length > 16000000)
+                    {
+                        throw new InvalidDataException("Markdownの構成情報が大きすぎます。");
+                    }
+
+                    using var metadata = new MemoryStream(bytes);
+                    await archive.AddAsync("markdown.json", metadata, cancellationToken);
                 }
             }
 

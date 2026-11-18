@@ -23,7 +23,7 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
     /// <summary>生成中だけ更新を排他し、ダウンロード中はゲートを保持しない</summary>
     [HttpPost("/data/export")]
     [ServiceFilter(typeof(AuthOperationFilter))]
-    public async Task<IActionResult> Export(string kind, string? bookId)
+    public async Task<IActionResult> Export(string kind, string? bookId, bool includeImages = true)
     {
         if (kind is not ("backup" or "markdown"))
         {
@@ -32,7 +32,7 @@ public sealed class DataController(AppDbContext db, BackupService backups, Backu
 
         try
         {
-            var path = await backups.ExportAsync(Owner, kind == "backup", string.IsNullOrEmpty(bookId) ? null : bookId, HttpContext.RequestAborted);
+            var path = await backups.ExportAsync(Owner, kind == "backup", string.IsNullOrEmpty(bookId) ? null : bookId, HttpContext.RequestAborted, includeImages);
             try
             {
                 audit.Add(HttpContext, "export." + kind, Owner);

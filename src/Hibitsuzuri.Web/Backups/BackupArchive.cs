@@ -17,6 +17,15 @@ public sealed partial class BackupArchive : IDisposable
     private readonly List<BackupFile> _files = [];
     private long _expanded;
 
+    /// <summary>検証済みの目録に記録された画像同梱の有無</summary>
+    public bool IncludesImages { get; private set; } = true;
+
+    /// <summary>Markdownを検証して内部形式へ変換した取り込み</summary>
+    public bool IsMarkdown
+    {
+        get; private set;
+    }
+
     /// <summary>未知の項目・深すぎるJSONを受け入れず、形式変更を版で区別する</summary>
     public static JsonSerializerOptions Json
     {
@@ -69,12 +78,15 @@ public sealed partial class BackupArchive : IDisposable
 
         var manifest = JsonSerializer.Deserialize<BackupManifest>(manifestBytes.ToArray(), Json)
             ?? throw new InvalidDataException("目録を読み込めません。");
-        if (manifest.Format != "hibitsuzuri-backup" || manifest.Version != 1 || manifest.Files is null
+        if (manifest.Format is not ("hibitsuzuri-backup" or "hibitsuzuri-markdown-import") || manifest.Version != 1 || manifest.Files is null
             || manifest.Files.Count != _zip.Entries.Count - 1 || manifest.Files.Any(x => x is null)
             || manifest.Files.Select(x => x.Path).Distinct(StringComparer.Ordinal).Count() != manifest.Files.Count)
         {
             throw new InvalidDataException("対応していない形式・バージョン、または不正な目録です。");
         }
+
+        IncludesImages = manifest.IncludesImages;
+        IsMarkdown = manifest.Format == "hibitsuzuri-markdown-import";
 
         long total = manifestEntry.Length;
         foreach (var file in manifest.Files)
@@ -161,9 +173,10 @@ public sealed partial class BackupArchive : IDisposable
     }
 
     /// <summary>目録自身も容量へ含め、最後に形式情報を保存する</summary>
-    public async Task FinishAsync(TimeProvider clock, CancellationToken cancellationToken)
+    public async Task FinishAsync(TimeProvider clock, CancellationToken cancellationToken, bool includesImages = true, bool markdown = false)
     {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new BackupManifest("hibitsuzuri-backup", 1, clock.GetUtcNow(), clock.LocalTimeZone.Id, _files), Json);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new BackupManifest(markdown ? "hibitsuzuri-markdown-import" : "hibitsuzuri-backup",
+            1, clock.GetUtcNow(), clock.LocalTimeZone.Id, _files, includesImages), Json);
         if (bytes.Length > 16000000 || _expanded + bytes.Length > ExpandedLimit)
         {
             throw new InvalidDataException("バックアップが展開後4GBを超えています。");
@@ -204,7 +217,8 @@ public sealed partial class BackupArchive : IDisposable
 /// <param name="CreatedAt">バックアップを作成した日時</param>
 /// <param name="TimeZone">暦日の解釈に使ったタイムゾーン</param>
 /// <param name="Files">改ざん検知ではなく、破損・欠落検出のための目録</param>
-public sealed record BackupManifest(string Format, int Version, DateTimeOffset CreatedAt, string TimeZone, List<BackupFile> Files);
+/// <param name="IncludesImages">画像実体を含む出力を選んだか</param>
+public sealed record BackupManifest(string Format, int Version, DateTimeOffset CreatedAt, string TimeZone, List<BackupFile> Files, bool IncludesImages = true);
 
 /// <summary>単一ファイルのサイズと破損検出用ハッシュ</summary>
 /// <param name="Path">ZIP内の固定形式の相対名</param>

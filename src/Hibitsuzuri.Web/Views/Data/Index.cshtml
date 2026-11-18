@@ -11,7 +11,7 @@
 
 <section class="paper settings-panel">
     <h2>Markdownで書き出す</h2>
-    <p>現在の日記本文と添付画像をZIPにまとめます。履歴・タスク・ゴミ箱は含みません。この形式からの復元はできません。</p>
+    <p>現在の日記本文をZIPにまとめます。履歴・タスク・ゴミ箱は含みません。</p>
     <form method="post" action="/data/export" class="account-form">
         @Html.AntiForgeryToken()
         <input type="hidden" name="kind" value="markdown" />
@@ -23,6 +23,8 @@
                 <option value="@book.Id">@book.Name@(book.Archived ? "（アーカイブ）" : "")</option>
             }
         </select>
+        <label class="check-label"><input type="checkbox" name="includeImages" value="true" checked /> 画像を含める</label>
+        <input type="hidden" name="includeImages" value="false" />
         <button class="button" type="submit">Markdown ZIPをダウンロード</button>
     </form>
 </section>
@@ -35,6 +37,9 @@
     <form method="post" action="/data/export">
         @Html.AntiForgeryToken()
         <input type="hidden" name="kind" value="backup" />
+        <label class="check-label"><input type="checkbox" name="includeImages" value="true" checked /> 画像を含める</label>
+        <input type="hidden" name="includeImages" value="false" />
+        <p class="muted">画像なしでも本文・履歴・テンプレートの画像参照は残ります。画像の実体は復元できません。</p>
         <button class="button primary" type="submit">バックアップZIPをダウンロード</button>
     </form>
 </section>
