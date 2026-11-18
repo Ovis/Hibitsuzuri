@@ -5,6 +5,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-beta'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta[0-9]+'
   release:
     types: [published]
 
@@ -40,18 +41,18 @@ jobs:
         env:
           PUBLISHED_AS_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
-          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta)?$ ]]; then
-            echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-beta."
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta([1-9][0-9]*)?)?$ ]]; then
+            echo "::error::Release tags must use vMAJOR.MINOR.PATCH, optionally followed by -beta or -betaN (N is a positive integer without leading zeros)."
             exit 1
           fi
 
           prerelease=false
-          if [[ "$GITHUB_REF_NAME" == *-beta ]]; then
+          if [[ "$GITHUB_REF_NAME" == *-beta* ]]; then
             prerelease=true
           fi
 
           if [[ "$GITHUB_EVENT_NAME" == release && "$PUBLISHED_AS_PRERELEASE" != "$prerelease" ]]; then
-            echo "::error::The release type must match the tag. Publish -beta tags as pre-releases."
+            echo "::error::The release type must match the tag. Publish beta tags as pre-releases."
             exit 1
           fi
 
