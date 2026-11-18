@@ -2,7 +2,9 @@ name: Release
 
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta'
   release:
     types: [published]
 
@@ -20,12 +22,13 @@ defaults:
 jobs:
   validate:
     name: Verify the release tag
-    if: ${{ (github.event_name == 'push' && github.event.created) || (github.event_name == 'release' && !github.event.release.prerelease) }}
+    if: ${{ github.event_name == 'release' || (github.event_name == 'push' && github.event.created) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       revision: ${{ steps.version.outputs.revision }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,9 +37,21 @@ jobs:
 
       - name: Check the version and main ancestry
         id: version
+        env:
+          PUBLISHED_AS_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
-          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::Release tags must use vMAJOR.MINOR.PATCH."
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta)?$ ]]; then
+            echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-beta."
+            exit 1
+          fi
+
+          prerelease=false
+          if [[ "$GITHUB_REF_NAME" == *-beta ]]; then
+            prerelease=true
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == release && "$PUBLISHED_AS_PRERELEASE" != "$prerelease" ]]; then
+            echo "::error::The release type must match the tag. Publish -beta tags as pre-releases."
             exit 1
           fi
 
@@ -51,7 +66,7 @@ jobs:
             exit 1
           fi
 
-          printf 'tag=%s\nrevision=%s\n' "$GITHUB_REF_NAME" "$revision" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\nrevision=%s\nprerelease=%s\n' "$GITHUB_REF_NAME" "$revision" "$prerelease" >> "$GITHUB_OUTPUT"
 
   verify:
     name: Run CI for the release
@@ -70,6 +85,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
     steps:
       - name: Create a draft for the existing tag
         run: |
@@ -78,7 +94,8 @@ jobs:
             exit 0
           fi
 
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes \
+            --prerelease="$RELEASE_PRERELEASE"
 
   publish:
     name: Publish the container image
