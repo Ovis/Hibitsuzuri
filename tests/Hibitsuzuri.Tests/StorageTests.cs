@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Hibitsuzuri.Web.Storage;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hibitsuzuri.Tests;
@@ -95,15 +97,20 @@ public sealed class StorageTests
         Assert.ThrowsAsync<SqliteException>(async () => await command.ExecuteNonQueryAsync());
     }
 
-    /// <summary>同じデータ領域を使用する別ホストの起動を拒否する</summary>
+    /// <summary>稼働中のホストが同じデータ領域の二重確保を拒否する</summary>
     [Test]
-    public async Task ConcurrentHostCannotShareDataDirectory()
+    public async Task RunningHostHoldsExclusiveDataDirectoryLock()
     {
-        await using var first = new TestApplication();
-        using var browser = first.CreateBrowser();
-        await using var second = new TestApplication(first.DataPath) { PreserveData = true };
+        await using var app = new TestApplication();
+        using var browser = app.CreateBrowser();
+        var configuration = app.Services.GetRequiredService<IConfiguration>();
+        var environment = app.Services.GetRequiredService<IWebHostEnvironment>();
 
-        Assert.Throws<IOException>(() => second.CreateBrowser());
+        // 起動失敗時のテストホスト破棄と競合しないよう、2つ目のロック取得を直接確認する。
+        Assert.Throws<IOException>(() =>
+        {
+            using var second = new DataDirectory(configuration, environment);
+        });
     }
 
     /// <summary>移行履歴と列順を除き、SQLiteに実際に作られた制約を列挙する</summary>
