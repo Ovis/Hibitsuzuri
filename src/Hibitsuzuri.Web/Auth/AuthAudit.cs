@@ -33,7 +33,7 @@ public sealed class AuthAudit(AppDbContext db, TimeProvider clock)
     }
 }
 
-/// <summary>90日を過ぎた監査と期限切れの専用フローを回収する</summary>
+/// <summary>保持期限を過ぎた監査・専用フローと、無効になったセッションを回収する</summary>
 public sealed class AuthMaintenance(IServiceScopeFactory scopes, AuthWriteGate gate, TimeProvider clock, ILogger<AuthMaintenance> logger) : BackgroundService
 {
     /// <summary>起動後と1時間ごとに回収する。失敗はログへ残し、次の周期で再試行する</summary>
@@ -53,6 +53,7 @@ public sealed class AuthMaintenance(IServiceScopeFactory scopes, AuthWriteGate g
 
                     await scope.ServiceProvider.GetRequiredService<AuthAudit>().PruneAsync(stoppingToken);
                     await db.AccountFlows.Where(x => x.ExpiresAt <= now.ToUnixTimeMilliseconds()).ExecuteDeleteAsync(stoppingToken);
+                    await scope.ServiceProvider.GetRequiredService<SessionService>().PruneAsync(stoppingToken);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {

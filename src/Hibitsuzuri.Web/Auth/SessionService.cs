@@ -12,6 +12,16 @@ public sealed class SessionService(AppDbContext db, UserManager<AppUser> users, 
 {
     public const string SessionClaim = "hibitsuzuri:session";
 
+    /// <summary>認証に使えなくなった記録を回収し、自然失効後の通知購読は維持する</summary>
+    public async Task PruneAsync(CancellationToken cancellationToken = default)
+    {
+        var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+
+        // 通知の無効化は明示ログアウト等の操作時に行う。期限切れの回収では連動させない。
+        await db.AuthSessions.Where(x => x.ExpiresAt <= now).ExecuteDeleteAsync(cancellationToken);
+        await db.AuthSessions.Where(x => x.RevokedAt != null).ExecuteDeleteAsync(cancellationToken);
+    }
+
     /// <summary>本人確認済みのユーザーへ固定期限のCookieを発行する</summary>
     public async Task SignInAsync(HttpContext context, AppUser user, bool rememberMe)
     {
