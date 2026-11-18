@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
@@ -41,23 +40,23 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
             var position = await db.Notebooks.Where(x => x.UserId == owner).Select(x => (int?)x.Position).MaxAsync(token) ?? -1;
             var positions = inspection.Books.Values.OrderBy(x => x.Position).ThenBy(x => x.Id)
                 .Select((book, index) => (book.Id, Position: position + index + 1)).ToDictionary(x => x.Id, x => x.Position);
-            foreach (var (_, book) in archive.Read<Notebook>("books"))
+            foreach (var (_, saved) in archive.Read<BackupNotebook>("books"))
             {
+                var book = BackupMapping.Restore(saved);
                 book.Position = positions[book.Id];
                 book.Id = books[book.Id];
                 book.UserId = owner;
-                book.Version = NewId();
                 book.Template = Rewrite(book.Template, imageIds);
                 book.NotificationAfter = now;
                 await InsertAsync(book, token);
             }
 
             await FlushAsync(token);
-            foreach (var (_, entry) in archive.Read<DiaryEntry>("entries"))
+            foreach (var (_, saved) in archive.Read<BackupEntry>("entries"))
             {
+                var entry = BackupMapping.Restore(saved);
                 entry.Id = entries[entry.Id];
                 entry.NotebookId = books[entry.NotebookId];
-                entry.Version = NewId();
                 entry.Content = Rewrite(entry.Content, imageIds);
                 entry.PlainText = markdown.PlainText(entry.Content);
                 entry.SearchText = DiarySearch.Normalize(entry.PlainText);
@@ -65,16 +64,18 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
             }
 
             await FlushAsync(token);
-            foreach (var (_, revision) in archive.Read<DiaryRevision>("revisions"))
+            foreach (var (_, saved) in archive.Read<BackupRevision>("revisions"))
             {
+                var revision = BackupMapping.Restore(saved);
                 revision.Id = NewId();
                 revision.EntryId = entries[revision.EntryId];
                 revision.Content = Rewrite(revision.Content, imageIds);
                 await InsertAsync(revision, token);
             }
 
-            foreach (var (_, image) in archive.Read<DiaryImage>("images"))
+            foreach (var (_, saved) in archive.Read<BackupImage>("images"))
             {
+                var image = BackupMapping.Restore(saved);
                 image.Id = imageIds[image.Id];
                 image.UserId = owner;
                 image.NotebookId = books[image.NotebookId];
@@ -89,33 +90,31 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 db.ChangeTracker.Clear();
             }
 
-            foreach (var (_, item) in archive.Read<TaskSeries>("series"))
+            foreach (var (_, saved) in archive.Read<BackupTaskSeries>("series"))
             {
+                var item = BackupMapping.Restore(saved);
                 item.Id = series[item.Id];
                 item.NotebookId = books[item.NotebookId];
-                item.Version = NewId();
                 await InsertAsync(item, token);
             }
 
             await FlushAsync(token);
-            foreach (var (_, segment) in archive.Read<TaskSegment>("segments"))
+            foreach (var (_, saved) in archive.Read<BackupTaskSegment>("segments"))
             {
+                var segment = BackupMapping.Restore(saved);
                 segment.Id = segments[segment.Id];
                 segment.SeriesId = series[segment.SeriesId];
-                segment.Version = NewId();
                 segment.SearchText = DiarySearch.Normalize(segment.Title + "\n" + segment.Memo);
-                segment.ReminderJson = RemapReminders(segment.ReminderJson);
                 await InsertAsync(segment, token);
             }
 
             await FlushAsync(token);
-            foreach (var (_, task) in archive.Read<TaskRecord>("tasks"))
+            foreach (var (_, saved) in archive.Read<BackupTask>("tasks"))
             {
+                var task = BackupMapping.Restore(saved);
                 task.NotebookId = books[task.NotebookId];
-                task.Version = NewId();
                 task.NotificationAfter = now;
                 task.SearchText = DiarySearch.Normalize(task.Title + "\n" + task.Memo);
-                task.ReminderJson = RemapReminders(task.ReminderJson);
                 if (task.SeriesId is { } oldSeries && task.SegmentId is { } oldSegment && task.ScheduledDate is { } date)
                 {
                     task.SeriesId = series[oldSeries];
@@ -130,27 +129,28 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
                 await InsertAsync(task, token);
             }
 
-            foreach (var (_, slot) in archive.Read<TaskSlot>("slots"))
+            foreach (var (_, saved) in archive.Read<BackupTaskSlot>("slots"))
             {
+                var slot = BackupMapping.Restore(saved);
                 slot.SegmentId = segments[slot.SegmentId];
                 slot.Id = TaskSchedule.Key(slot.SegmentId, slot.ScheduledDate);
-                slot.Version = NewId();
                 slot.NotificationAfter = now;
                 await InsertAsync(slot, token);
             }
 
-            foreach (var (_, pause) in archive.Read<TaskPause>("pauses"))
+            foreach (var (_, saved) in archive.Read<BackupTaskPause>("pauses"))
             {
+                var pause = BackupMapping.Restore(saved);
                 pause.Id = NewId();
                 pause.NotebookId = books[pause.NotebookId];
                 await InsertAsync(pause, token);
             }
 
-            foreach (var (_, anniversary) in archive.Read<Anniversary>("anniversaries"))
+            foreach (var (_, saved) in archive.Read<BackupAnniversary>("anniversaries"))
             {
+                var anniversary = BackupMapping.Restore(saved);
                 anniversary.Id = NewId();
                 anniversary.UserId = owner;
-                anniversary.Version = NewId();
                 foreach (var link in anniversary.Notebooks)
                 {
                     link.AnniversaryId = anniversary.Id;
@@ -186,23 +186,11 @@ public sealed class BackupRestore(AppDbContext db, BackupService backups, ImageS
     /// <summary>元のIDを別アカウントの既存データへ結び付けない</summary>
     private static Dictionary<string, string> Map(IEnumerable<string> ids) => ids.ToDictionary(x => x, _ => NewId(), StringComparer.Ordinal);
 
-    /// <summary>復元ごとに新しい排他トークンと所有範囲を作る</summary>
+    /// <summary>復元元の記録と衝突しない新しい識別子を発行する</summary>
     private static string NewId() => Guid.NewGuid().ToString("N");
 
     /// <summary>存在しない画像の参照も新しい未登録IDへ置き換える</summary>
     private string Rewrite(string content, IReadOnlyDictionary<string, string> ids) => markdown.RewriteImages(content, id => "attachment:" + ids[id]);
-
-    /// <summary>配信履歴から独立した通知設定として復元する</summary>
-    private static string RemapReminders(string json)
-    {
-        var reminders = Reminders.Read(json);
-        foreach (var reminder in reminders)
-        {
-            reminder.Id = NewId();
-        }
-
-        return JsonSerializer.Serialize(reminders);
-    }
 
     /// <summary>一括復元中も追跡する本文の数を制限する</summary>
     private async Task InsertAsync<T>(T row, CancellationToken token) where T : class

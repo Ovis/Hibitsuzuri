@@ -58,8 +58,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
                     if (backup)
                     {
                         AddReferences(book.Template, book.Id, needed);
-                        book.UserId = "";
-                        await archive.AddRecordAsync("books", book, cancellationToken);
+                        await archive.AddRecordAsync("books", BackupMapping.Export(book), cancellationToken);
                     }
                 }
 
@@ -69,9 +68,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
                     AddReferences(entry.Content, entry.NotebookId, needed);
                     if (backup)
                     {
-                        entry.PlainText = "";
-                        entry.SearchText = null;
-                        await archive.AddRecordAsync("entries", entry, cancellationToken);
+                        await archive.AddRecordAsync("entries", BackupMapping.Export(entry), cancellationToken);
                     }
                     else
                     {
@@ -94,7 +91,7 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
                     {
                         var book = await entries.Where(x => x.Id == revision.EntryId).Select(x => x.NotebookId).SingleAsync(cancellationToken);
                         AddReferences(revision.Content, book, needed);
-                        await archive.AddRecordAsync("revisions", revision, cancellationToken);
+                        await archive.AddRecordAsync("revisions", BackupMapping.Export(revision), cancellationToken);
                         CheckCompressed(path);
                     }
 
@@ -112,13 +109,12 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
 
                     if (backup)
                     {
-                        image.UserId = "";
                         if (!bookIds.Contains(image.NotebookId))
                         {
                             image.NotebookId = needed[id];
                         }
 
-                        await archive.AddRecordAsync("images", image, cancellationToken);
+                        await archive.AddRecordAsync("images", BackupMapping.Export(image), cancellationToken);
                     }
 
                     await using var input = File.OpenRead(images.PathFor(id));
@@ -172,9 +168,9 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
     {
         var series = db.TaskSeries.AsNoTracking().Where(x => books.Contains(x.NotebookId));
         var segments = db.TaskSegments.AsNoTracking().Where(x => series.Any(s => s.Id == x.SeriesId));
-        await ExportRowsAsync(archive, "series", series, token);
-        await ExportRowsAsync(archive, "segments", segments, token);
-        await ExportRowsAsync(archive, "tasks", db.TaskRecords.AsNoTracking().Where(x => books.Contains(x.NotebookId)), token);
+        await ExportRowsAsync(archive, "series", series, BackupMapping.Export, token);
+        await ExportRowsAsync(archive, "segments", segments, BackupMapping.Export, token);
+        await ExportRowsAsync(archive, "tasks", db.TaskRecords.AsNoTracking().Where(x => books.Contains(x.NotebookId)), BackupMapping.Export, token);
         var reminders = await segments.ToDictionaryAsync(x => x.Id, x => x.ReminderJson, token);
         var operated = (await db.TaskRecords.Where(x => x.SeriesId != null && books.Contains(x.NotebookId)).Select(x => x.Id).ToListAsync(token)).ToHashSet();
         await foreach (var slot in db.TaskSlots.AsNoTracking().Where(x => segments.Any(s => s.Id == x.SegmentId)).AsAsyncEnumerable().WithCancellation(token))
@@ -186,29 +182,27 @@ public sealed class BackupService(AppDbContext db, DataDirectory data, DiaryMark
                 continue;
             }
 
-            slot.Frozen = true;
-            await archive.AddRecordAsync("slots", slot, token);
+            await archive.AddRecordAsync("slots", BackupMapping.Export(slot), token);
         }
 
-        await ExportRowsAsync(archive, "pauses", db.TaskPauses.AsNoTracking().Where(x => books.Contains(x.NotebookId)), token);
+        await ExportRowsAsync(archive, "pauses", db.TaskPauses.AsNoTracking().Where(x => books.Contains(x.NotebookId)), BackupMapping.Export, token);
 
         foreach (var anniversary in await db.Anniversaries.AsNoTracking().Include(x => x.Notebooks).Where(x => x.UserId == owner).ToListAsync(token))
         {
-            anniversary.UserId = "";
             anniversary.Notebooks = anniversary.Notebooks.Where(x => books.Contains(x.NotebookId)).ToList();
             if (anniversary.AllNotebooks || anniversary.Notebooks.Count > 0)
             {
-                await archive.AddRecordAsync("anniversaries", anniversary, token);
+                await archive.AddRecordAsync("anniversaries", BackupMapping.Export(anniversary), token);
             }
         }
     }
 
-    /// <summary>各テーブルのデータを一件ずつ書き出す</summary>
-    private static async Task ExportRowsAsync<T>(BackupArchive archive, string group, IQueryable<T> query, CancellationToken token)
+    /// <summary>各テーブルのデータを保存用の型へ変換し、一件ずつ書き出す</summary>
+    private static async Task ExportRowsAsync<T, TBackup>(BackupArchive archive, string group, IQueryable<T> query, Func<T, TBackup> convert, CancellationToken token)
     {
         await foreach (var row in query.AsAsyncEnumerable().WithCancellation(token))
         {
-            await archive.AddRecordAsync(group, row, token);
+            await archive.AddRecordAsync(group, convert(row), token);
         }
     }
 

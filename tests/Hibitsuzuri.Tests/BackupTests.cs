@@ -7,6 +7,7 @@ using Hibitsuzuri.Web.Backups;
 using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
 using Hibitsuzuri.Web.Images;
+using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +85,19 @@ public sealed class BackupTests
         {
             var text = string.Join("\n", zip.Entries.Where(x => x.FullName.EndsWith(".json", StringComparison.Ordinal)).Select(ReadText));
             Assert.That(text, Does.Not.Contain("PasswordHash").And.Not.Contain("ProtectedSubscription").And.Not.Contain("ゴミ箱本文").And.Not.Contain("削除帳本文"));
+            foreach (var record in zip.Entries.Where(x => x.FullName.EndsWith(".json", StringComparison.Ordinal) && x.FullName != "manifest.json"))
+            {
+                using var json = JsonDocument.Parse(ReadText(record));
+                var names = json.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+                Assert.That(names, Has.None.EqualTo("UserId"));
+                Assert.That(names, Has.None.EqualTo("Version"));
+                Assert.That(names, Has.None.EqualTo("PlainText"));
+                Assert.That(names, Has.None.EqualTo("SearchText"));
+                Assert.That(names, Has.None.EqualTo("NotificationAfter"));
+                Assert.That(names, Has.None.EqualTo("RuleJson"));
+                Assert.That(names, Has.None.EqualTo("ReminderJson"));
+            }
+
             Assert.That(zip.Entries.Any(x => x.FullName.StartsWith("assets/", StringComparison.Ordinal)), Is.True);
         }
 
@@ -117,10 +131,14 @@ public sealed class BackupTests
             Assert.That(restored.Archived, Is.True);
             Assert.That(restored.TasksPausedOn, Is.EqualTo(new DateOnly(2020, 1, 4)));
             Assert.That(entry.Content, Does.Contain("attachment:" + image.Id));
+            Assert.That(entry.SearchText, Does.Contain("現在の本文"));
             Assert.That(restored.Template, Does.Contain("attachment:" + image.Id));
             Assert.That(task.Id, Is.EqualTo(TaskSchedule.Key(segment.Id, new DateOnly(2020, 1, 2))));
             Assert.That(task.CompletedAt, Is.Not.Null);
             Assert.That(task.Memo, Is.EqualTo("操作した回のメモ"));
+            Assert.That(Reminders.Read(segment.ReminderJson).Single().Time, Is.EqualTo("08:30"));
+            Assert.That(Reminders.Read(task.ReminderJson).Single().At, Is.EqualTo("2020-01-02T08:30"));
+            Assert.That(Reminders.Read(task.ReminderJson).Single().Id, Is.Not.EqualTo("00000000000000000000000000000002"));
             Assert.That(anniversary.Notebooks.Single().NotebookId, Is.EqualTo(restored.Id));
         });
         Assert.That(await db.DiaryRevisions.CountAsync(x => x.EntryId == entry.Id), Is.EqualTo(1));
@@ -242,6 +260,9 @@ public sealed class BackupTests
     [TestCase("foreign-book")]
     [TestCase("null")]
     [TestCase("missing-id")]
+    [TestCase("missing-content")]
+    [TestCase("null-content")]
+    [TestCase("internal-field")]
     public async Task RejectsInvalidArchivesWithoutWritingRecords(string damage)
     {
         await using var app = new TestApplication();
@@ -375,10 +396,10 @@ public sealed class BackupTests
         await db.SaveChangesAsync();
 
         using var zip = new ZipArchive(new MemoryStream(await ExportAsync(client)));
-        var slot = JsonSerializer.Deserialize<TaskSlot>(ReadText(zip.Entries.Single(x => x.FullName.StartsWith("slots/", StringComparison.Ordinal)))) ?? throw new InvalidDataException();
+        var slot = JsonSerializer.Deserialize<BackupTaskSlot>(ReadText(zip.Entries.Single(x => x.FullName.StartsWith("slots/", StringComparison.Ordinal))), BackupArchive.Json) ?? throw new InvalidDataException();
         Assert.Multiple(() =>
         {
-            Assert.That(slot.Frozen, Is.True);
+            Assert.That(slot.ScheduledDate, Is.EqualTo(new DateOnly(2020, 1, 1)));
             Assert.That(slot.DueDate, Is.EqualTo(new DateOnly(2020, 1, 3)));
         });
     }
@@ -430,6 +451,7 @@ public sealed class BackupTests
             SeriesId = series.Id,
             Title = "繰り返し",
             Memo = "共通メモ",
+            ReminderJson = JsonSerializer.Serialize(new[] { new Reminder { Id = "00000000000000000000000000000001", Kind = "relative", DaysBefore = 1, Time = "08:30" } }),
             StartDate = new DateOnly(2020, 1, 1),
             RuleJson = JsonSerializer.Serialize(new RepeatRule { Count = 3 })
         };
@@ -445,6 +467,7 @@ public sealed class BackupTests
             DueDate = new DateOnly(2020, 1, 3),
             CompletedAt = now,
             Edited = true,
+            ReminderJson = JsonSerializer.Serialize(new[] { new Reminder { Id = "00000000000000000000000000000002", Kind = "absolute", At = "2020-01-02T08:30" } }),
             Title = "操作した回",
             Memo = "操作した回のメモ"
         });
@@ -522,18 +545,33 @@ public sealed class BackupTests
             {
                 var entry = zip.Entries.Single(x => x.FullName.StartsWith("entries/", StringComparison.Ordinal));
                 var name = entry.FullName;
-                var record = JsonSerializer.Deserialize<DiaryEntry>(ReadText(entry)) ?? throw new InvalidDataException();
+                var record = JsonSerializer.Deserialize<BackupEntry>(ReadText(entry), BackupArchive.Json) ?? throw new InvalidDataException();
                 if (damage is "checksum" or "foreign-book")
                 {
-                    record.NotebookId = Guid.NewGuid().ToString("N");
+                    record = record with
+                    {
+                        NotebookId = Guid.NewGuid().ToString("N")
+                    };
                 }
 
                 entry.Delete();
                 var content = damage == "null" ? "null"u8.ToArray() : JsonSerializer.SerializeToUtf8Bytes(record);
-                if (damage == "missing-id")
+                if (damage is "missing-id" or "missing-content" or "null-content" or "internal-field")
                 {
                     var json = System.Text.Json.Nodes.JsonNode.Parse(content)?.AsObject() ?? throw new InvalidDataException();
-                    json.Remove("Id");
+                    if (damage is "missing-id" or "missing-content")
+                    {
+                        json.Remove(damage == "missing-id" ? "Id" : "Content");
+                    }
+                    else if (damage == "null-content")
+                    {
+                        json["Content"] = null;
+                    }
+                    else
+                    {
+                        json["Version"] = Guid.NewGuid().ToString("N");
+                    }
+
                     content = JsonSerializer.SerializeToUtf8Bytes(json);
                 }
 

@@ -1,10 +1,6 @@
 using System.Globalization;
-using System.Text.Json;
 using Hibitsuzuri.Web.Auth;
-using Hibitsuzuri.Web.Calendar;
 using Hibitsuzuri.Web.Diary;
-using Hibitsuzuri.Web.Images;
-using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Tasks;
 
 namespace Hibitsuzuri.Web.Backups;
@@ -13,7 +9,7 @@ namespace Hibitsuzuri.Web.Backups;
 public sealed class BackupInspection
 {
     /// <summary>表示順と復元時の名前衝突を確認する日記帳</summary>
-    public Dictionary<string, Notebook> Books { get; } = [];
+    public Dictionary<string, BackupNotebook> Books { get; } = [];
 
     /// <summary>履歴と画像参照の所属先</summary>
     public Dictionary<string, string> Entries { get; } = [];
@@ -22,10 +18,10 @@ public sealed class BackupInspection
     public Dictionary<string, string> Series { get; } = [];
 
     /// <summary>各回のIDと系列の整合を確認する区間</summary>
-    public Dictionary<string, TaskSegment> Segments { get; } = [];
+    public Dictionary<string, BackupTaskSegment> Segments { get; } = [];
 
     /// <summary>実体検証と保存先の割り当てに使う画像情報</summary>
-    public Dictionary<string, DiaryImage> Images { get; } = [];
+    public Dictionary<string, BackupImage> Images { get; } = [];
 
     /// <summary>欠落画像も既存アカウントのIDへ結び付けないための参照集合</summary>
     public HashSet<string> ImageReferences { get; } = [];
@@ -68,19 +64,23 @@ public sealed class BackupInspection
     {
         var result = new BackupInspection();
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (_, book) in archive.Read<Notebook>("books"))
+        foreach (var (_, book) in archive.Read<BackupNotebook>("books"))
         {
-            Require(ValidId(book.Id) && book.UserId == "" && book.DeletedAt is null && AuthRules.ValidText(book.Name, 1, 100)
+            Require(ValidId(book.Id) && AuthRules.ValidText(book.Name, 1, 100)
                 && book.Name == book.Name.Trim() && AuthRules.ValidText(book.Template, 0, 100000) && book.Position >= 0
-                && names.Add(book.Name) && result.Books.TryAdd(book.Id, book));
+                && names.Add(book.Name));
+            Require(result.Books.TryAdd(book.Id, book with
+            {
+                Template = ""
+            }));
+
             result.ImageReferences.UnionWith(markdown.ImageIds(book.Template));
-            book.Template = "";
         }
 
         var dates = new HashSet<(string, DateOnly)>();
-        foreach (var (_, entry) in archive.Read<DiaryEntry>("entries"))
+        foreach (var (_, entry) in archive.Read<BackupEntry>("entries"))
         {
-            Require(ValidId(entry.Id) && result.Books.ContainsKey(entry.NotebookId) && entry.DeletedAt is null
+            Require(ValidId(entry.Id) && result.Books.ContainsKey(entry.NotebookId)
                 && AuthRules.ValidText(entry.Content, 1, 100000) && !string.IsNullOrWhiteSpace(entry.Content)
                 && Timestamp(entry.CreatedAt) && Timestamp(entry.UpdatedAt)
                 && dates.Add((entry.NotebookId, entry.EntryDate)) && result.Entries.TryAdd(entry.Id, entry.NotebookId));
@@ -90,7 +90,7 @@ public sealed class BackupInspection
         var revisions = new HashSet<string>();
         var sequences = new HashSet<(string, long)>();
         var historyCount = new Dictionary<string, int>();
-        foreach (var (_, revision) in archive.Read<DiaryRevision>("revisions"))
+        foreach (var (_, revision) in archive.Read<BackupRevision>("revisions"))
         {
             Require(ValidId(revision.Id) && revisions.Add(revision.Id) && result.Entries.ContainsKey(revision.EntryId)
                 && AuthRules.ValidText(revision.Content, 1, 100000) && Timestamp(revision.UpdatedAt) && revision.Sequence >= 0
@@ -101,9 +101,9 @@ public sealed class BackupInspection
             result.Revisions++;
         }
 
-        foreach (var (_, image) in archive.Read<DiaryImage>("images"))
+        foreach (var (_, image) in archive.Read<BackupImage>("images"))
         {
-            Require(ValidId(image.Id) && image.UserId == "" && result.Books.ContainsKey(image.NotebookId)
+            Require(ValidId(image.Id) && result.Books.ContainsKey(image.NotebookId)
                 && AuthRules.ValidText(image.Name, 0, 200) && image.MediaType is "image/png" or "image/jpeg" or "image/webp" or "image/gif"
                 && image.Width is >= 1 and <= 16384 && image.Height is >= 1 and <= 16384 && (long)image.Width * image.Height <= 40000000
                 && image.Length is >= 1 and <= 160000000 && Timestamp(image.CreatedAt)
@@ -120,30 +120,32 @@ public sealed class BackupInspection
     private void ReadTasks(BackupArchive archive)
     {
         var ids = new HashSet<string>();
-        foreach (var (_, pause) in archive.Read<TaskPause>("pauses"))
+        foreach (var (_, pause) in archive.Read<BackupTaskPause>("pauses"))
         {
             Require(ValidId(pause.Id) && ids.Add(pause.Id) && Books.ContainsKey(pause.NotebookId) && pause.From < pause.Until);
         }
 
-        foreach (var (_, series) in archive.Read<TaskSeries>("series"))
+        foreach (var (_, series) in archive.Read<BackupTaskSeries>("series"))
         {
             Require(ValidId(series.Id) && Books.ContainsKey(series.NotebookId) && Series.TryAdd(series.Id, series.NotebookId));
         }
 
-        foreach (var (_, segment) in archive.Read<TaskSegment>("segments"))
+        foreach (var (_, segment) in archive.Read<BackupTaskSegment>("segments"))
         {
-            Require(ValidId(segment.Id) && Series.ContainsKey(segment.SeriesId) && Segments.TryAdd(segment.Id, segment)
+            Require(ValidId(segment.Id) && Series.ContainsKey(segment.SeriesId)
                 && AuthRules.ValidText(segment.Title, 1, 200) && AuthRules.ValidText(segment.Memo, 0, 10000)
                 && (segment.Cutoff is null || segment.Cutoff >= segment.StartDate)
-                && segment.RuleJson is not null && segment.RuleJson.Length <= 4096 && RepeatRule.Read(segment.RuleJson).Valid(segment.StartDate));
-            ValidateReminders(segment.ReminderJson, true, segment.StartDate);
-            segment.Memo = "";
-            segment.SearchText = "";
+                && segment.Rule is not null && BackupMapping.Restore(segment.Rule).Valid(segment.StartDate));
+            ValidateReminders(segment.Reminders, true, segment.StartDate);
+            Require(Segments.TryAdd(segment.Id, segment with
+            {
+                Memo = ""
+            }));
         }
 
         Require(Segments.Values.Select(x => x.SeriesId).ToHashSet().SetEquals(Series.Keys));
         ids.Clear();
-        foreach (var (_, task) in archive.Read<TaskRecord>("tasks"))
+        foreach (var (_, task) in archive.Read<BackupTask>("tasks"))
         {
             Require(task.Id is not null && ids.Add(task.Id) && Books.ContainsKey(task.NotebookId)
                 && AuthRules.ValidText(task.Title, 1, 200) && AuthRules.ValidText(task.Memo, 0, 10000)
@@ -159,31 +161,29 @@ public sealed class BackupInspection
                     && task.Id == TaskSchedule.Key(task.SegmentId, date) && date >= segment.StartDate);
             }
 
-            ValidateReminders(task.ReminderJson, false, task.DueDate);
+            ValidateReminders(task.Reminders, false, task.DueDate);
             Tasks++;
         }
 
         ids.Clear();
-        foreach (var (_, slot) in archive.Read<TaskSlot>("slots"))
+        foreach (var (_, slot) in archive.Read<BackupTaskSlot>("slots"))
         {
             Require(slot.Id is not null && ids.Add(slot.Id) && Segments.TryGetValue(slot.SegmentId, out var segment)
-                && slot.Id == TaskSchedule.Key(slot.SegmentId, slot.ScheduledDate) && slot.ScheduledDate >= segment.StartDate
-                && slot.Frozen && !slot.Waiting);
+                && slot.Id == TaskSchedule.Key(slot.SegmentId, slot.ScheduledDate) && slot.ScheduledDate >= segment.StartDate);
         }
     }
 
     /// <summary>過去の通知設定は保持し、日時の形と範囲だけを検証する</summary>
-    private static void ValidateReminders(string json, bool recurring, DateOnly? due)
+    private static void ValidateReminders(IReadOnlyList<BackupReminder> reminders, bool recurring, DateOnly? due)
     {
-        Require(json is not null && json.Length <= 4096);
-        var reminders = JsonSerializer.Deserialize<List<Reminder>>(json, BackupArchive.Json);
         Require(reminders is not null && reminders.Count <= 3);
-        var ids = new HashSet<string>();
         foreach (var reminder in reminders)
         {
-            Require(reminder is not null && ValidId(reminder.Id) && ids.Add(reminder.Id)
+            Require(reminder is not null
                 && reminder.Kind is "relative" or "absolute" && (!recurring || reminder.Kind == "relative")
-                && reminder.DaysBefore is >= 0 and <= 365);
+                && reminder.DaysBefore is >= 0 and <= 365
+                && reminder.Time is not null && reminder.Time.Length <= 5
+                && reminder.At is not null && reminder.At.Length <= 16);
             Require(reminder.Kind == "relative"
                 ? due is not null && TimeOnly.TryParseExact(reminder.Time, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)
                 : DateTime.TryParseExact(reminder.At, "yyyy-MM-dd'T'HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _));
@@ -194,15 +194,15 @@ public sealed class BackupInspection
     private void ReadAnniversaries(BackupArchive archive)
     {
         var ids = new HashSet<string>();
-        foreach (var (_, anniversary) in archive.Read<Anniversary>("anniversaries"))
+        foreach (var (_, anniversary) in archive.Read<BackupAnniversary>("anniversaries"))
         {
-            Require(ValidId(anniversary.Id) && ids.Add(anniversary.Id) && anniversary.UserId == ""
+            Require(ValidId(anniversary.Id) && ids.Add(anniversary.Id)
                 && AuthRules.ValidText(anniversary.Title, 1, 100) && anniversary.Month is >= 1 and <= 12
                 && anniversary.Day >= 1 && anniversary.Day <= DateTime.DaysInMonth(2000, anniversary.Month)
-                && anniversary.LeapDayPolicy is "skip" or "feb28" or "mar1" && anniversary.Notebooks is not null);
-            Require(anniversary.Notebooks.All(x => x is not null && x.AnniversaryId == anniversary.Id && Books.ContainsKey(x.NotebookId))
-                && anniversary.Notebooks.Select(x => x.NotebookId).Distinct().Count() == anniversary.Notebooks.Count
-                && (anniversary.AllNotebooks ? anniversary.Notebooks.Count == 0 : anniversary.Notebooks.Count > 0));
+                && anniversary.LeapDayPolicy is "skip" or "feb28" or "mar1" && anniversary.NotebookIds is not null);
+            Require(anniversary.NotebookIds.All(x => x is not null && Books.ContainsKey(x))
+                && anniversary.NotebookIds.Distinct().Count() == anniversary.NotebookIds.Length
+                && (anniversary.AllNotebooks ? anniversary.NotebookIds.Length == 0 : anniversary.NotebookIds.Length > 0));
             Anniversaries++;
         }
     }

@@ -24,6 +24,8 @@ public sealed partial class BackupArchive : IDisposable
     } = new()
     {
         MaxDepth = 16,
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
