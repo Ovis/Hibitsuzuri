@@ -41,7 +41,7 @@ public sealed class SearchController(AppDbContext database) : Controller
             var query = DiarySearch.Normalize(keyword);
             entries = await database.DiaryEntries.AsNoTracking().Where(x => ids.Contains(x.NotebookId) && x.DeletedAt == null
                 && (first == null || x.EntryDate >= first) && (last == null || x.EntryDate <= last)
-                && x.SearchText != null && x.SearchText.Contains(query))
+                && x.SearchText.Contains(query))
                 .OrderByDescending(x => x.EntryDate).ThenBy(x => x.NotebookId).Skip((page - 1) * 50).Take(51).ToListAsync();
         }
 

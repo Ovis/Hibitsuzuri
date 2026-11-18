@@ -5,8 +5,6 @@ using Hibitsuzuri.Web.Notifications;
 using Hibitsuzuri.Web.Storage;
 using Hibitsuzuri.Web.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hibitsuzuri.Tests;
@@ -14,31 +12,25 @@ namespace Hibitsuzuri.Tests;
 /// <summary>繰り返し、操作の取り消し、再起動にまたがる通知設定の保持</summary>
 public sealed class NotificationScheduleTests
 {
-    /// <summary>段階5の既存タスクと系列を移行しても、空文字を通知JSONとして読み込まない</summary>
+    /// <summary>新規DBで通知を指定せずに作成した通常タスクと系列を、空の通知設定として読み出せる</summary>
     [Test]
-    public async Task ExistingTasksMigrateWithEmptyReminderLists()
+    public async Task NewTasksStartWithEmptyReminderLists()
     {
         await using var app = NotificationTests.Application(new RecordingPush());
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);
-        await TaskTests.SaveAsync(client, new TaskChange { NotebookId = book, Title = "従来のタスク", OperationId = Guid.NewGuid().ToString() });
+        await TaskTests.SaveAsync(client, new TaskChange { NotebookId = book, Title = "通知なしのタスク", OperationId = Guid.NewGuid().ToString() });
         await TaskTests.SaveAsync(client, new TaskChange
         {
             NotebookId = book,
-            Title = "従来の系列",
+            Title = "通知なしの系列",
             StartDate = DateOnly.FromDateTime(app.Clock.GetLocalNow().DateTime),
             Rule = new RepeatRule { Count = 2 },
             OperationId = Guid.NewGuid().ToString()
         });
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var migrator = db.GetService<IMigrator>();
-
-        // この試験専用DBだけを旧スキーマへ戻し、実際のアップグレードを通す。
-        await migrator.MigrateAsync("20261113045349_Tasks");
-        await migrator.MigrateAsync();
-        db.ChangeTracker.Clear();
 
         Assert.That(await db.TaskRecords.Select(x => x.ReminderJson).SingleAsync(), Is.EqualTo("[]"));
         Assert.That(await db.TaskSegments.Select(x => x.ReminderJson).SingleAsync(), Is.EqualTo("[]"));

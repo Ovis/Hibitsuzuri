@@ -121,9 +121,6 @@ public sealed class TaskSegment
 
     /// <summary>検証済みの周期・終了・休日調整</summary>
     public string RuleJson { get; set; } = "";
-
-    /// <summary>区間の作成時に発行する版</summary>
-    public string Version { get; set; } = Guid.NewGuid().ToString("N");
 }
 
 /// <summary>必要な範囲だけ計算する予定の索引。利用者の操作記録とは分離する</summary>

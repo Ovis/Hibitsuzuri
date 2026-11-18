@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Hibitsuzuri.Web.Storage;
 
 /// <summary>Identity標準テーブルとアプリの永続状態を同じトランザクションで扱う</summary>
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityUserContext<AppUser>(options)
 {
     /// <summary>復元の確認待ちと二重適用を防ぐ確定記録</summary>
     public DbSet<RestoreTransfer> RestoreTransfers => Set<RestoreTransfer>();
@@ -87,19 +87,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     /// <summary>重要な認証操作の監査記録</summary>
     public DbSet<SecurityAuditLog> SecurityAuditLogs => Set<SecurityAuditLog>();
 
-    /// <summary>標準Identityスキーマを維持し、アプリ独自の所有関係だけ追加する</summary>
+    /// <summary>ロールを使用しないIdentityと、アプリの所有関係・検索条件を定義する</summary>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // ログインIDで認証するため、メールアドレス検索の索引は作成しない。
+        builder.Entity<AppUser>().Metadata.RemoveIndex([builder.Entity<AppUser>().Property(x => x.NormalizedEmail).Metadata]);
 
         builder.Entity<RestoreTransfer>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<PushDevice>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<PushDevice>().HasIndex(x => new { x.UserId, x.BrowserId }).IsUnique();
         builder.Entity<PushDevice>().HasIndex(x => x.EndpointHash);
+        builder.Entity<PushDevice>().HasIndex(x => x.BrowserId);
         builder.Entity<PushDelivery>().HasOne<PushDevice>().WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<PushDelivery>().HasIndex(x => new { x.DeviceId, x.Generation, x.TaskId, x.ReminderId, x.ScheduledAt }).IsUnique();
         builder.Entity<PushDelivery>().HasIndex(x => new { x.Finished, x.NextAttemptAt });
+        builder.Entity<PushDelivery>().HasIndex(x => x.ScheduledAt);
 
         builder.Entity<TaskRecord>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<TaskRecord>().HasOne<TaskSeries>().WithMany().HasForeignKey(x => x.SeriesId).OnDelete(DeleteBehavior.Cascade);
@@ -107,6 +112,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         builder.Entity<TaskRecord>().HasIndex(x => new { x.NotebookId, x.CompletedAt, x.Id });
         builder.Entity<TaskRecord>().HasIndex(x => new { x.SeriesId, x.ScheduledDate });
         builder.Entity<TaskRecord>().HasIndex(x => new { x.NotebookId, x.DueDate });
+        builder.Entity<TaskRecord>().HasIndex(x => x.SegmentId);
 
         builder.Entity<TaskSeries>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<TaskSeries>().Property(x => x.Version).IsConcurrencyToken();
@@ -144,6 +150,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         // 削除済みを扱う管理・復元処理だけが明示的にフィルターを解除する。
         builder.Entity<Notebook>().HasQueryFilter(x => x.DeletedAt == null);
         builder.Entity<Notebook>().HasIndex(x => new { x.UserId, x.Name }).IsUnique().HasFilter("DeletedAt IS NULL");
+        builder.Entity<Notebook>().HasIndex(x => x.UserId);
         builder.Entity<Notebook>().Property(x => x.Version).IsConcurrencyToken();
 
         builder.Entity<DiaryEntry>().HasOne<Notebook>().WithMany().HasForeignKey(x => x.NotebookId).OnDelete(DeleteBehavior.Cascade);
@@ -162,7 +169,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         builder.Entity<AuthSession>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<RecoveryCode>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<AccountFlow>().HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
-        builder.Entity<AuthSession>().HasIndex(x => new { x.UserId, x.BrowserId });
+        builder.Entity<AuthSession>().HasIndex(x => x.BrowserId);
+        builder.Entity<AuthSession>().HasIndex(x => x.ExpiresAt);
+        builder.Entity<AuthSession>().HasIndex(x => x.RevokedAt);
         builder.Entity<AccountFlow>().HasIndex(x => x.ExpiresAt);
         builder.Entity<SecurityAuditLog>().HasIndex(x => x.OccurredAt);
     }

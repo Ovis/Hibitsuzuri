@@ -21,11 +21,8 @@ public sealed class DiaryEntry
     /// <summary>検索結果に表示する、Markdown記号を除いた本文</summary>
     public string PlainText { get; set; } = "";
 
-    /// <summary>幅と大小文字を正規化した検索用本文。nullは初回移行待ち</summary>
-    public string? SearchText
-    {
-        get; set;
-    }
+    /// <summary>幅と大小文字を正規化し、保存・復元時に本文から生成する検索用本文</summary>
+    public string SearchText { get; set; } = "";
 
     /// <summary>最初の保存時刻（UTCミリ秒）</summary>
     public long CreatedAt

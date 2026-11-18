@@ -1,7 +1,5 @@
 using System.Net;
 using System.Text;
-using Hibitsuzuri.Web.Storage;
-using Microsoft.EntityFrameworkCore;
 
 namespace Hibitsuzuri.Web.Diary;
 
@@ -60,29 +58,6 @@ public static class DiarySearch
         }
 
         return result.Append(end < text.Length ? "…" : "").ToString();
-    }
-
-    /// <summary>導入前の本文も移行後の初回起動で検索可能にする</summary>
-    public static async Task BackfillAsync(AppDbContext database, CancellationToken cancellationToken)
-    {
-        var markdown = new DiaryMarkdown();
-        while (true)
-        {
-            var batch = await database.DiaryEntries.Where(x => x.SearchText == null).Take(100).ToListAsync(cancellationToken);
-            if (batch.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var entry in batch)
-            {
-                entry.PlainText = markdown.PlainText(entry.Content);
-                entry.SearchText = Normalize(entry.PlainText);
-            }
-
-            await database.SaveChangesAsync(cancellationToken);
-            database.ChangeTracker.Clear();
-        }
     }
 }
 

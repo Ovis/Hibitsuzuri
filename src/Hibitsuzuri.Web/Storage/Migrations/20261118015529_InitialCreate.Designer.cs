@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Hibitsuzuri.Web.Storage.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261113070531_AddDataTransfersAndNotebookLifecycle")]
-    partial class AddDataTransfersAndNotebookLifecycle
+    [Migration("20261118015529_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -150,9 +150,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NormalizedEmail")
-                        .HasDatabaseName("EmailIndex");
-
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
@@ -188,7 +185,13 @@ namespace Hibitsuzuri.Web.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "BrowserId");
+                    b.HasIndex("BrowserId");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("RevokedAt");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("AuthSessions");
                 });
@@ -394,6 +397,7 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SearchText")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<long>("UpdatedAt")
@@ -497,6 +501,8 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("UserId", "Name")
                         .IsUnique()
@@ -632,6 +638,8 @@ namespace Hibitsuzuri.Web.Storage.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ScheduledAt");
+
                     b.HasIndex("Finished", "NextAttemptAt");
 
                     b.HasIndex("DeviceId", "Generation", "TaskId", "ReminderId", "ScheduledAt")
@@ -681,6 +689,8 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BrowserId");
 
                     b.HasIndex("EndpointHash");
 
@@ -789,6 +799,8 @@ namespace Hibitsuzuri.Web.Storage.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SegmentId");
+
                     b.HasIndex("NotebookId", "DueDate");
 
                     b.HasIndex("SeriesId", "ScheduledDate");
@@ -830,10 +842,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Version")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -919,55 +927,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.ToTable("TaskWindows");
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NormalizedName")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedName")
-                        .IsUnique()
-                        .HasDatabaseName("RoleNameIndex");
-
-                    b.ToTable("AspNetRoles", (string)null);
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ClaimType")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ClaimValue")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("AspNetRoleClaims", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
                 {
                     b.Property<int>("Id")
@@ -1030,21 +989,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AspNetUserPasskeys", (string)null);
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<string>", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RoleId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("UserId", "RoleId");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("AspNetUserRoles", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
@@ -1289,15 +1233,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
                 {
                     b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
@@ -1364,21 +1299,6 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                         });
 
                     b.Navigation("Data")
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<string>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Hibitsuzuri.Web.Auth.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

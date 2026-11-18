@@ -10,9 +10,9 @@ namespace Hibitsuzuri.Tests;
 /// <summary>検索・暦・記念日の表示と所有者境界を検証する</summary>
 public sealed class CalendarSearchTests
 {
-    /// <summary>検索導入前の日記を初回起動で索引化し、原文と履歴を変更しない</summary>
+    /// <summary>保存直後から検索用本文を生成し、原文のリンク先と英数字の表記を保つ</summary>
     [Test]
-    public async Task StartupBackfillsExistingDiaryText()
+    public async Task SavingDiaryCreatesNormalizedSearchText()
     {
         await using var app = new TestApplication();
         using var client = app.CreateBrowser();
@@ -21,9 +21,6 @@ public sealed class CalendarSearchTests
         var version = await DiaryClient.SaveVersionAsync(client, book, "## 昔のＡＢＣ\n[本文](https://hidden.example)");
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.DiaryEntries.ExecuteUpdateAsync(update => update.SetProperty(x => x.SearchText, (string?)null).SetProperty(x => x.PlainText, ""));
-
-        await DiarySearch.BackfillAsync(db, CancellationToken.None);
         var entry = await db.DiaryEntries.SingleAsync();
         Assert.That(entry.SearchText, Does.Contain("昔のabc").And.Not.Contain("hidden.example"));
         Assert.That(entry.Content, Does.Contain("https://hidden.example"));
