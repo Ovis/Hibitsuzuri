@@ -92,6 +92,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<AppUser>().Property(x => x.RequireExplicitDiaryLineBreaks).HasDefaultValue(false);
+
         // ログインIDで認証するため、メールアドレス検索の索引は作成しない。
         builder.Entity<AppUser>().Metadata.RemoveIndex([builder.Entity<AppUser>().Property(x => x.NormalizedEmail).Metadata]);
 

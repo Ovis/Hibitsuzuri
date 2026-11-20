@@ -56,6 +56,20 @@
                 <a href="/admin/audit">監査ログ</a>
             }
         </div>
+        <form id="diary-line-breaks" class="form-stack spacer" method="post" action="/settings/diary-line-breaks" aria-labelledby="diary-line-breaks-label">
+            @Html.AntiForgeryToken()
+            <fieldset aria-describedby="diary-line-breaks-help">
+                <legend id="diary-line-breaks-label">段落内の改行</legend>
+                <label><input type="radio" name="requireExplicitLineBreaks" value="false" checked="@(!Model.User.RequireExplicitDiaryLineBreaks)" required />入力どおりに改行する（既定）</label>
+                <label><input type="radio" name="requireExplicitLineBreaks" value="true" checked="@Model.User.RequireExplicitDiaryLineBreaks" />明示した改行だけ表示する</label>
+                <p id="diary-line-breaks-help">改行を明示するには、行末に半角スペース2つか、半角バックスラッシュ（<code>\</code>）を入力します。</p>
+            </fieldset>
+            <button class="primary" type="submit">設定を保存</button>
+            @if (TempData["DiaryLineBreaksSaved"] is true)
+            {
+                <p role="status">段落内の改行設定を保存しました。</p>
+            }
+        </form>
     </section>
 </div>
 <div class="actions spacer">
