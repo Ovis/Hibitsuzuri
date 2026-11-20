@@ -60,13 +60,19 @@ public static partial class AuthClient
     public static partial Regex CodePattern();
 }
 
-/// <summary>待機せずに有効期限を進める試験時計</summary>
+/// <summary>試験の基準日時と経過時間を制御する時計</summary>
 public sealed class TestClock : TimeProvider
 {
     private DateTimeOffset _now = DateTimeOffset.UtcNow;
 
     /// <summary>試験上の現在時刻</summary>
     public override DateTimeOffset GetUtcNow() => _now;
+
+    /// <summary>実行日時に依存しない試験の基準時刻を設定する</summary>
+    public void SetUtcNow(DateTimeOffset value)
+    {
+        _now = value.ToUniversalTime();
+    }
 
     /// <summary>時間境界まで進める</summary>
     public void Advance(TimeSpan duration)
