@@ -23,6 +23,9 @@ public sealed class HolidayTests
                 .ConfigurePrimaryHttpMessageHandler(() => new HolidayHandler(request => request.RequestUri?.AbsoluteUri == HolidaySource.MetadataUrl
                     ? Metadata("https://www8.cao.go.jp/new.csv") : Csv(csv)))
         };
+
+        // 訂正前の期日が同梱の祝日で繰り越されないよう、祝日のない期間を使う。
+        app.Clock.SetUtcNow(new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero));
         using var client = app.CreateBrowser();
         await AuthClient.RegisterAsync(app, client);
         var book = await DiaryClient.CreateBookAsync(client);

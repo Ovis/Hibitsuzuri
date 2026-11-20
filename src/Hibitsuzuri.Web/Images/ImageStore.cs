@@ -68,13 +68,17 @@ public sealed class ImageStore(AppDbContext database, DataDirectory data, DiaryM
                 || database.ImageDraftLeases.Any(l => l.ImageId == x.Id && l.ExpiresAt > now))).ToListAsync();
     }
 
-    /// <summary>本人の有効な画像だけをHTMLへ含める</summary>
+    /// <summary>本人の改行設定と有効な画像を使って日記を描画する</summary>
     public async Task<string> RenderAsync(string owner, string content)
     {
+        // 同じ画面で現行版と履歴を描画するときは、同じリクエスト内で取得済みの設定を使う。
+        var user = await database.Users.FindAsync(owner)
+            ?? throw new InvalidOperationException("日記の表示設定を取得できません。");
+
         var ids = markdown.ImageIds(content);
         var allowed = ids.Count == 0 ? [] : (await AvailableAsync(owner, ids)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 
-        return markdown.Render(content, allowed);
+        return markdown.Render(content, allowed, user.RequireExplicitDiaryLineBreaks);
     }
 
     /// <summary>下書きに現在含まれる画像だけを30日間延長する。書き込みゲート内で呼ぶ</summary>

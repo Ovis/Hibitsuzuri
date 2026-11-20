@@ -54,12 +54,18 @@ public sealed class DiaryMarkdown
         && Guid.TryParseExact(url[11..], "N", out var id) ? id.ToString("N") : null;
 
     /// <summary>生HTMLと任意属性の拡張を受け入れず、必要な構文だけ描画する</summary>
-    public string Render(string text, IReadOnlySet<string>? images = null)
+    public string Render(string text, IReadOnlySet<string>? images = null, bool requireExplicitLineBreaks = false)
     {
         using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
         var renderer = new HtmlRenderer(writer);
         _pipeline.Setup(renderer);
         renderer.ObjectRenderers.Replace<LinkInlineRenderer>(new SafeLinkRenderer(images));
+
+        // 検索用テキストや画像参照と解析規則を共有するため、通常の改行はHTML描画時に反映する。
+        if (!requireExplicitLineBreaks)
+        {
+            renderer.ObjectRenderers.Replace<LineBreakInlineRenderer>(new LineBreakInlineRenderer { RenderAsHardlineBreak = true });
+        }
 
         renderer.Render(Markdown.Parse(text, _pipeline));
 

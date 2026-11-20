@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +14,39 @@ namespace Hibitsuzuri.Tests;
 /// <summary>実SQLiteファイルとData Protectionキーの永続性を検証する</summary>
 public sealed class StorageTests
 {
+    /// <summary>改行設定の導入前に作成したアカウントには入力どおりの改行を適用する</summary>
+    [Test]
+    public async Task DiaryLineBreakMigrationDefaultsExistingAccountsToInputLineBreaks()
+    {
+        await using var app = new TestApplication();
+        using var browser = app.CreateBrowser();
+        await using var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
+        await connection.OpenAsync();
+
+        // 本番と同じIdentityスキーマを使い、移行対象の接続だけを別DBに切り替える。
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        database.Database.SetDbConnection(connection);
+
+        await database.GetService<IMigrator>().MigrateAsync("20261118015529_InitialCreate");
+        await database.Database.ExecuteSqlRawAsync("""
+            INSERT INTO AspNetUsers (
+                Id, UserName, KeepOriginalImages, IsAdmin, IsSuspended, RecoveryCodesConfirmed, RecoveryFailures,
+                RecoveryBlockedUntil, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount
+            ) VALUES ('existing-user', 'existing', 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0)
+            """);
+
+        await database.Database.MigrateAsync();
+        var user = await database.Users.SingleAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(user.UserName, Is.EqualTo("existing"));
+            Assert.That(user.KeepOriginalImages, Is.True);
+            Assert.That(user.RequireExplicitDiaryLineBreaks, Is.False);
+        });
+    }
+
     /// <summary>新規DBの列・索引・外部キーが現行モデルと一致し、移行専用の既定値を残さない</summary>
     [Test]
     public async Task MigratedSchemaMatchesCurrentModel()

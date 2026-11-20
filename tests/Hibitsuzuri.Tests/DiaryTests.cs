@@ -9,6 +9,97 @@ namespace Hibitsuzuri.Tests;
 /// <summary>日記保存・履歴・並行操作・再送を実SQLiteとHTTPで確認する</summary>
 public sealed class DiaryTests
 {
+    /// <summary>プレビューと保存後の閲覧で、通常の改行と空行による段落分けを反映する</summary>
+    [Test]
+    public async Task PreviewAndSavedDiaryPreserveLineBreaks()
+    {
+        const string content = "投稿本文。\n通常の改行。  \n行末に空白を付けた改行。\n\n別の段落。";
+        const string expected = "<p>投稿本文。<br />\n通常の改行。<br />\n行末に空白を付けた改行。</p>\n<p>別の段落。</p>";
+
+        await using var app = new TestApplication();
+        using var client = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, client);
+        var book = await DiaryClient.CreateBookAsync(client);
+
+        using var preview = await AuthClient.PostAsync(client, "/api/diary/preview", new()
+        {
+            ["content"] = content
+        });
+        preview.EnsureSuccessStatusCode();
+        using var previewJson = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+
+        await DiaryClient.SaveVersionAsync(client, book, content);
+        var savedPage = await client.GetStringAsync($"/diary/{book}/2020-05-10");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(previewJson.RootElement.GetProperty("html").GetString(), Is.EqualTo(expected + "\n"));
+            Assert.That(savedPage, Does.Contain($"<article class=\"prose\">{expected}\n</article>"));
+        });
+    }
+
+    /// <summary>変更前に保存した日記と履歴にも、アカウントごとの改行設定を適用する</summary>
+    [Test]
+    public async Task LineBreakPreferenceAppliesAcrossBrowsersAndDiaryViews()
+    {
+        const string body = "通常の改行。  \n空白で明示。\\\nバックスラッシュで明示。\n\n別の段落。";
+        const string explicitHtml = "通常の改行。<br />\n空白で明示。<br />\nバックスラッシュで明示。</p>\n<p>別の段落。</p>\n";
+        const string settingsPath = "/settings/diary-line-breaks";
+
+        await using var app = new TestApplication();
+        using var owner = app.CreateBrowser();
+        using var anotherBrowser = app.CreateBrowser();
+        using var member = app.CreateBrowser();
+        await AuthClient.RegisterAsync(app, owner);
+        await AuthClient.RegisterAsync(app, member, "member", false);
+        var book = await DiaryClient.CreateBookAsync(owner);
+        var diaryPath = $"/diary/{book}/2020-05-10";
+        var version = await DiaryClient.SaveVersionAsync(owner, book, "以前の本文。\n" + body);
+        await DiaryClient.SaveVersionAsync(owner, book, "現在の本文。\n" + body, version);
+
+        using var changed = await AuthClient.PostAsync(owner, settingsPath, new()
+        {
+            ["requireExplicitLineBreaks"] = "true"
+        });
+        Assert.That(changed.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        using var login = await AuthClient.LoginAsync(anotherBrowser);
+        Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+
+        using var preview = await AuthClient.PostAsync(anotherBrowser, "/api/diary/preview", new()
+        {
+            ["content"] = "現在の本文。\n" + body
+        });
+        preview.EnsureSuccessStatusCode();
+        using var previewJson = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+        var savedPage = await anotherBrowser.GetStringAsync(diaryPath);
+        var editor = await anotherBrowser.GetStringAsync(diaryPath + "/edit");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(previewJson.RootElement.GetProperty("html").GetString(), Is.EqualTo("<p>現在の本文。\n" + explicitHtml));
+            Assert.That(savedPage, Does.Contain($"<article class=\"prose\"><p>現在の本文。\n{explicitHtml}</article>"));
+            Assert.That(savedPage, Does.Contain($" hidden><p>以前の本文。\n{explicitHtml}</article>"));
+            Assert.That(editor, Does.Contain($"id=\"diary-preview\" class=\"prose\"><p>現在の本文。\n{explicitHtml}</div>"));
+            Assert.That(editor, Does.Contain($"<article class=\"prose\"><p>以前の本文。\n{explicitHtml}</article>"));
+        });
+
+        using var memberPreview = await AuthClient.PostAsync(member, "/api/diary/preview", new()
+        {
+            ["content"] = "別のアカウント。\n次の行。"
+        });
+        memberPreview.EnsureSuccessStatusCode();
+        using var memberJson = JsonDocument.Parse(await memberPreview.Content.ReadAsStringAsync());
+        Assert.That(memberJson.RootElement.GetProperty("html").GetString(), Is.EqualTo("<p>別のアカウント。<br />\n次の行。</p>\n"));
+
+        using var reset = await AuthClient.PostAsync(owner, settingsPath, new()
+        {
+            ["requireExplicitLineBreaks"] = "false"
+        });
+        Assert.That(reset.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+        var resetPage = await anotherBrowser.GetStringAsync(diaryPath);
+        Assert.That(resetPage, Does.Contain($"<article class=\"prose\"><p>現在の本文。<br />\n{explicitHtml}</article>"));
+    }
+
     /// <summary>明示保存だけで作成し、本文が変わった場合だけ過去5版を残す</summary>
     [Test]
     public async Task ExplicitSavesKeepOnlyFiveChangedRevisions()

@@ -33,6 +33,29 @@ public sealed class SettingsController(UserManager<AppUser> users, AppDbContext 
         });
     }
 
+    /// <summary>本人の日記で段落内の改行をどう表示するか保存する</summary>
+    [HttpPost("/settings/diary-line-breaks")]
+    [ServiceFilter(typeof(AuthOperationFilter))]
+    public async Task<IActionResult> SaveDiaryLineBreaks([FromForm] bool? requireExplicitLineBreaks)
+    {
+        if (!ModelState.IsValid || requireExplicitLineBreaks is null)
+        {
+            return BadRequest("段落内の改行の表示方法を選択してください。");
+        }
+
+        var user = await users.GetUserAsync(User);
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        user.RequireExplicitDiaryLineBreaks = requireExplicitLineBreaks.Value;
+        await database.SaveChangesAsync();
+
+        TempData["DiaryLineBreaksSaved"] = true;
+        return Redirect("/settings#diary-line-breaks");
+    }
+
     /// <summary>テーマとライト配色の選択肢を表示する</summary>
     [HttpGet("/settings/appearance")]
     public IActionResult Appearance()

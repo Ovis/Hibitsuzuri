@@ -135,6 +135,11 @@ namespace Hibitsuzuri.Web.Storage.Migrations
                     b.Property<int>("RecoveryFailures")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("RequireExplicitDiaryLineBreaks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
 

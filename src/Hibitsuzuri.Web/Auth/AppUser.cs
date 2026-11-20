@@ -11,6 +11,12 @@ public sealed class AppUser : IdentityUser
         get; set;
     }
 
+    /// <summary>日記の段落内で、行末の空白やバックスラッシュで明示した改行だけを表示する設定</summary>
+    public bool RequireExplicitDiaryLineBreaks
+    {
+        get; set;
+    }
+
     /// <summary>ユーザー管理を許可する権限。記録の所有権は付与しない</summary>
     public bool IsAdmin
     {
